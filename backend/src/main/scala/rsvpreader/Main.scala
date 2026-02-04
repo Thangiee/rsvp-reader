@@ -10,6 +10,20 @@ object Main extends KyoApp:
     _.get.in("api" / "hello").out(stringBody)
   )(_ => SharedMessage.hello.message)
 
+  val indexRoute: Unit < Routes = Routes.add(
+    _.get.out(htmlBodyUtf8)
+  )(_ => scala.io.Source.fromFile("frontend/index.html").mkString)
+
+  val jsRoute: Unit < Routes = Routes.add(
+    _.get
+      .in("assets" / "main.js")
+      .out(stringBodyUtf8AnyFormat(Codec.string.format(CodecFormat.TextJavascript())))
+  )(_ => scala.io.Source.fromFile("frontend/target/scala-3.7.4/frontend-fastopt/main.js").mkString)
+
   run {
-    Routes.run(helloRoute)
+    for
+      _     <- Routes.run(helloRoute.andThen(indexRoute).andThen(jsRoute))
+      fiber <- Fiber.never
+      _     <- Fiber.get(fiber)
+    yield ()
   }
