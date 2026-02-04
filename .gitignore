@@ -1,0 +1,14 @@
+# sbt
+target/
+project/target/
+project/project/
+
+# IDE
+.idea/
+.bsp/
+.metals/
+.bloop/
+.vscode/
+
+# OS
+.DS_Store
