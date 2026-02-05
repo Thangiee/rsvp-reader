@@ -2,51 +2,82 @@ package rsvpreader
 
 import com.raquo.laminar.api.L.{Var as LaminarVar, *}
 import org.scalajs.dom
-
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.scalajs.js
-import scala.scalajs.js.Thenable.Implicits.*
-import kyo.{Var, Var as KyoVar, *}
-
-import scala.concurrent.Future
-
-case class RsvpState(words: kyo.Span[String], idx: Int) {
-  def current: Maybe[String] =
-    if idx < words.length then Maybe(words(idx)) else Maybe.empty
-
-  def advance: RsvpState = this.copy(idx = idx + 1)
-
-  def isDone: Boolean = idx >= words.length
-}
-
-def rsvp(text: String, wpm: Int)(render: String => Unit) =
-  val words = Span.from(text.split("\\s+"))
-  val delay = (60000.0 / wpm).toLong.millis
-
-  Loop(RsvpState(words, 0)): s =>
-    s.current match
-      case Absent => Loop.done(())
-      case Present(word) =>
-        direct {
-          render(word)
-          Async.sleep(delay).now
-          Loop.continue(s.advance)
-        }
+import kyo.*
 
 object Main extends KyoApp:
-  val messageVar = LaminarVar("Loading...")
+  // Reactive state for UI
+  val stateVar = LaminarVar(ViewState(
+    tokens = Span.empty,
+    index = 0,
+    status = PlayStatus.Stopped,
+    wpm = 300
+  ))
+
+  val config = RsvpConfig()
+
+  // Sample text for testing
+  val sampleText = """The quick brown fox jumps over the lazy dog. This is a test sentence with some longer words like extraordinary and magnificent.
+
+Second paragraph begins here. It contains multiple sentences. Each sentence should be trackable."""
 
   val app = div(
-    h1("RSVP Reader 123!!"),
-    p(child.text <-- messageVar.signal)
-  )
-  renderOnDomContentLoaded(dom.document.getElementById("app"), app)
+    h1("RSVP Reader"),
 
-  val text = "The map method automatically updates the set of pending effects. When you apply map to computations that have different pending effects, Kyo reconciles these into a new computation type that combines all the unique pending effects from both operands."
+    // Focus word display
+    div(
+      cls := "focus-area",
+      child <-- stateVar.signal.map { state =>
+        state.currentToken match
+          case Absent => span("—")
+          case Present(token) =>
+            val text = token.text
+            val focus = token.focusIndex
+            span(
+              cls := "orp-word",
+              span(cls := "orp-before", text.take(focus)),
+              span(cls := "orp-focus", text.lift(focus).map(_.toString).getOrElse("")),
+              span(cls := "orp-after", text.drop(focus + 1))
+            )
+      }
+    ),
+
+    // Trail display
+    div(
+      cls := "trail-area",
+      children <-- stateVar.signal.map { state =>
+        state.trailTokens(config.trailWordCount).map { token =>
+          span(cls := "trail-word", token.text, " ")
+        }
+      }
+    ),
+
+    // Status display
+    div(
+      cls := "status",
+      child.text <-- stateVar.signal.map { state =>
+        s"Status: ${state.status} | Word: ${state.index + 1}/${state.tokens.length} | WPM: ${state.wpm}"
+      }
+    ),
+
+    // Controls placeholder (will be enhanced with /frontend-design)
+    div(
+      cls := "controls",
+      p("Controls will be added with /frontend-design skill")
+    )
+  )
+
+  renderOnDomContentLoaded(dom.document.getElementById("app"), app)
 
   run {
     direct {
-      rsvp(text, 500)(messageVar.set).now
+      val ch = Channel.init[Command](1).now
+      val tokens = Tokenizer.tokenize(sampleText)
+      val engine = PlaybackEngine(ch, config, state => stateVar.set(state))
+
+      // Auto-start after a moment
+      Async.sleep(1.second).now
+      ch.offer(Command.Resume).now
+
+      engine.run(tokens).now
     }
   }
-
