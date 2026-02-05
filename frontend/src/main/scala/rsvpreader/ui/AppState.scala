@@ -35,6 +35,11 @@ object AppState:
   def setChannel(ch: Channel[Command]): Unit =
     _channel = Maybe(ch)
 
+  def getChannel: Channel[Command] =
+    _channel match
+      case Present(ch) => ch
+      case Absent => sys.error("Channel not initialized")
+
   // ─────────────────────────────────────────────────────────────────────────
   // Command Dispatch
   // ─────────────────────────────────────────────────────────────────────────
