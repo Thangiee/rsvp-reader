@@ -24,7 +24,7 @@ object Layout:
       div(cls := "orp-guides"),
       Components.focusWord
     ),
-    Components.trailArea,
+    Components.sentenceContext,
     Components.progressBar
   )
 

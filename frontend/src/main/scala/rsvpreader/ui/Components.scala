@@ -65,10 +65,23 @@ object Components:
     }
   )
 
-  def trailArea: HtmlElement = div(
-    cls := "trail-area",
+  def sentenceContext: HtmlElement = div(
+    cls := "sentence-context",
     children <-- AppState.viewState.signal.map { s =>
-      s.trailTokens(AppState.config.trailWordCount).map(t => span(cls := "trail-word", t.text))
+      if s.tokens.isEmpty then Seq.empty
+      else
+        val currentSentenceIdx = s.currentToken.fold(-1)(_.sentenceIndex)
+        (0 until s.tokens.length)
+          .filter(i => s.tokens(i).sentenceIndex == currentSentenceIdx)
+          .map { i =>
+            val token = s.tokens(i)
+            val isCurrent = i == s.index
+            span(
+              cls := (if isCurrent then "sentence-word current" else "sentence-word"),
+              token.text,
+              " "
+            )
+          }
     }
   )
 
