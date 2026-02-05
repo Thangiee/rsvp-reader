@@ -87,8 +87,9 @@ class PlaybackEngine(
         loop(state.copy(wpm = wpm))
 
       case Command.Stop =>
-        val stopped = state.copy(status = PlayStatus.Stopped)
-        notify(stopped)
+        // Reset to beginning and pause (allows resuming)
+        val reset = state.copy(index = 0, status = PlayStatus.Paused)
+        notify(reset).andThen(loop(reset))
 
   private def findSentenceStart(tokens: Span[Token], current: Int, sentenceIdx: Int): Int =
     var i = current
