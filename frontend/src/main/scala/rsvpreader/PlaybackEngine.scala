@@ -2,6 +2,13 @@ package rsvpreader
 
 import kyo.*
 
+/** Async playback engine that displays tokens at configured speed with command handling.
+  * Uses Kyo Channel for responsive command processing (pause/resume interrupts sleep).
+  *
+  * @param commands      Channel for receiving playback commands
+  * @param config        RSVP timing configuration
+  * @param onStateChange Callback invoked on each state update for UI rendering
+  */
 class PlaybackEngine(
   commands: Channel[Command],
   config: RsvpConfig,

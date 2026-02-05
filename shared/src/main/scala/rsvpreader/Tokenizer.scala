@@ -2,6 +2,9 @@ package rsvpreader
 
 import kyo.*
 
+/** Converts raw text into a sequence of Tokens for RSVP display.
+  * Handles punctuation extraction, ORP calculation, and sentence/paragraph tracking.
+  */
 object Tokenizer:
 
   def tokenize(text: String): Span[Token] =

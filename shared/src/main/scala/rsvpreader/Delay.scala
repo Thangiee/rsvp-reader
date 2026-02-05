@@ -2,6 +2,12 @@ package rsvpreader
 
 import kyo.*
 
+/** Calculates display duration for a token based on WPM, word length, and punctuation.
+  *
+  * @param token  The token to calculate delay for
+  * @param config RSVP configuration with timing settings
+  * @return       Duration to display the token
+  */
 def calculateDelay(token: Token, config: RsvpConfig): Duration =
   val base = (60000.0 / config.baseWpm).toLong.millis
 
