@@ -21,9 +21,10 @@ object Main extends KyoApp:
   private def onTextLoaded(text: String): Unit =
     val tokens = Tokenizer.tokenize(text)
     val ch = AppState.getChannel
-    run {
-      direct {
-        val engine = PlaybackEngine(ch, AppState.config, state => AppState.viewState.set(state))
-        engine.run(tokens).now
-      }
+    val effect: Unit < (Async & Abort[Closed]) = direct {
+      val engine = PlaybackEngine(ch, AppState.config, state => AppState.viewState.set(state))
+      engine.run(tokens).now
     }
+    // Start the async effect as a fiber (fire-and-forget)
+    val fiber = Fiber.init(Abort.run[Closed](effect))
+    val _ = Sync.Unsafe.run(fiber)
