@@ -27,5 +27,8 @@ case class RsvpConfig(
   wordLengthBaseline: Int = 5,
   wordLengthFactor: Double = 0.1,
   orpEnabled: Boolean = true,
-  trailWordCount: Int = 5
+  trailWordCount: Int = 5,
+  centerMode: CenterMode = CenterMode.ORP,
+  keyBindings: KeyBindings = KeyBindings.default,
+  showSentenceContext: Boolean = true
 )

@@ -32,3 +32,12 @@ class RsvpConfigSuite extends FunSuite:
     assertEquals(config.wordLengthEnabled, false)
     // Others remain default
     assertEquals(config.periodDelay, 300.millis)
+
+  test("RsvpConfig defaults centerMode to ORP"):
+    assertEquals(RsvpConfig().centerMode, CenterMode.ORP)
+
+  test("RsvpConfig defaults keyBindings to KeyBindings.default"):
+    assertEquals(RsvpConfig().keyBindings, KeyBindings.default)
+
+  test("RsvpConfig showSentenceContext defaults to true"):
+    assertEquals(RsvpConfig().showSentenceContext, true)
