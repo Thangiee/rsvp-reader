@@ -233,6 +233,39 @@
         text-underline-offset: 3px;
       }
 
+      /* Expanded pause view */
+      .focus-container.expanded {
+        padding: 2rem;
+      }
+
+      .focus-container.expanded .focus-area {
+        font-size: 1.3rem;
+        line-height: 1.8;
+      }
+
+      .expanded-sentence {
+        max-width: 600px;
+        text-align: center;
+      }
+
+      .expanded-word {
+        color: var(--text-primary);
+        transition: all 0.2s ease;
+      }
+
+      .expanded-word.current {
+        color: var(--orp-color);
+        font-weight: 600;
+        background: rgba(212, 165, 116, 0.15);
+        padding: 0.1em 0.2em;
+        border-radius: 4px;
+      }
+
+      /* Smooth transition */
+      .focus-area {
+        transition: font-size 0.3s ease;
+      }
+
       /* Progress bar */
       .progress-container {
         width: 100%;

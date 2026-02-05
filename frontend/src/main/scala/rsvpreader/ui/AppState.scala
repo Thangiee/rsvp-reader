@@ -58,8 +58,10 @@ object AppState:
 
   val focusContainerCls: LaminarSignal[String] =
     viewState.signal.map { s =>
-      if s.status == PlayStatus.Playing then "focus-container playing"
-      else "focus-container"
+      val base = "focus-container"
+      val playing = if s.status == PlayStatus.Playing then " playing" else ""
+      val expanded = if s.status == PlayStatus.Paused && s.tokens.length > 0 then " expanded" else ""
+      base + playing + expanded
     }
 
   val statusDotCls: LaminarSignal[String] =

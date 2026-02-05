@@ -45,23 +45,41 @@ object Components:
       s.currentToken match
         case Absent => span(cls := "focus-placeholder", "READY TO READ")
         case Present(token) =>
-          val text = token.text
-          val focus = token.focusIndex
-          val centerMode = AppState.config.centerMode
+          val isPaused = s.status == PlayStatus.Paused
 
-          // Calculate offset for centering
-          val offsetChars = centerMode match
-            case CenterMode.ORP   => focus
-            case CenterMode.First => 0
-            case CenterMode.None  => -1 // Signal no centering
+          if isPaused then
+            // Expanded view: show full sentence with current word highlighted
+            div(
+              cls := "expanded-sentence",
+              (0 until s.tokens.length)
+                .filter(i => s.tokens(i).sentenceIndex == token.sentenceIndex)
+                .map { i =>
+                  val t = s.tokens(i)
+                  val isCurrent = i == s.index
+                  span(
+                    cls := (if isCurrent then "expanded-word current" else "expanded-word"),
+                    t.text,
+                    " "
+                  )
+                }
+            )
+          else
+            // Normal view: single ORP word
+            val text = token.text
+            val focus = token.focusIndex
+            val centerMode = AppState.config.centerMode
+            val offsetChars = centerMode match
+              case CenterMode.ORP   => focus
+              case CenterMode.First => 0
+              case CenterMode.None  => -1
 
-          span(
-            cls := "orp-word",
-            styleAttr := (if offsetChars >= 0 then s"--orp-offset: $offsetChars" else ""),
-            span(cls := "orp-before", text.take(focus)),
-            span(cls := "orp-focus", text.lift(focus).fold("")(_.toString)),
-            span(cls := "orp-after", text.drop(focus + 1))
-          )
+            span(
+              cls := "orp-word",
+              styleAttr := (if offsetChars >= 0 then s"--orp-offset: $offsetChars" else ""),
+              span(cls := "orp-before", text.take(focus)),
+              span(cls := "orp-focus", text.lift(focus).fold("")(_.toString)),
+              span(cls := "orp-after", text.drop(focus + 1))
+            )
     }
   )
 
