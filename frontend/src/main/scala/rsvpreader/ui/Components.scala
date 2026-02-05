@@ -67,7 +67,7 @@ object Components:
             // Normal view: single ORP word
             val text = token.text
             val focus = token.focusIndex
-            val centerMode = AppState.config.centerMode
+            val centerMode = AppState.currentCenterMode.now()
             val offsetChars = centerMode match
               case CenterMode.ORP   => focus
               case CenterMode.First => 0
