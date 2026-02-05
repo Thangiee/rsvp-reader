@@ -4,6 +4,7 @@ import kyo.*
 
 /** Async playback engine that displays tokens at configured speed with command handling.
   * Uses Kyo Channel for responsive command processing (pause/resume interrupts sleep).
+  * Uses Kyo Loop for stack-safe state machine iteration.
   *
   * @param commands      Channel for receiving playback commands
   * @param config        RSVP timing configuration
@@ -14,30 +15,46 @@ class PlaybackEngine(
   config: RsvpConfig,
   onStateChange: ViewState => Unit
 ):
+  // Type alias for loop outcomes - either continue with new state or done with result
+  private type Outcome = Loop.Outcome[ViewState, Unit]
 
+  // Type alias for the effect stack
+  private type PlaybackEffect = Async & Abort[Closed]
+
+  // Helper to create done outcome with explicit types
+  private def done: Outcome = Loop.done[ViewState, Unit](())
+
+  /** Notifies the UI of a state change. */
   private def notify(state: ViewState): Unit < Sync =
     Sync.Unsafe(onStateChange(state))
 
-  def run(tokens: Span[Token]): Unit < (Async & Abort[Closed]) =
+  def run(tokens: Span[Token]): Unit < PlaybackEffect =
     val initial = ViewState.initial(tokens, config)
+    println(s"PlaybackEngine.run: ${tokens.length} tokens, initial status=${initial.status}")
     notify(initial).andThen {
-      if config.startDelay > Duration.Zero then
-        Async.sleep(config.startDelay).andThen(loop(initial))
-      else
-        loop(initial)
+      println("PlaybackEngine: notify done, starting loop")
+      val startLoop =
+        if config.startDelay > Duration.Zero then
+          Async.sleep(config.startDelay).andThen(playbackLoop(initial))
+        else
+          playbackLoop(initial)
+      startLoop
     }
 
-  private def loop(state: ViewState): Unit < (Async & Abort[Closed]) =
-    state.status match
-      case PlayStatus.Stopped => ()
-      case PlayStatus.Paused  => handlePaused(state)
-      case PlayStatus.Playing => handlePlaying(state)
+  /** Main playback loop using Kyo Loop for explicit state machine semantics. */
+  private def playbackLoop(initial: ViewState): Unit < PlaybackEffect =
+    Loop(initial) { state =>
+      state.status match
+        case PlayStatus.Stopped => Loop.done(())
+        case PlayStatus.Paused  => handlePaused(state)
+        case PlayStatus.Playing => handlePlaying(state)
+    }
 
-  private def handlePlaying(state: ViewState): Unit < (Async & Abort[Closed]) =
+  private def handlePlaying(state: ViewState): Outcome < PlaybackEffect =
     state.currentToken match
       case Absent =>
-        val done = state.copy(status = PlayStatus.Stopped)
-        notify(done)
+        val stopped = state.copy(status = PlayStatus.Stopped)
+        notify(stopped).andThen(done)
 
       case Present(token) =>
         notify(state).andThen {
@@ -46,50 +63,47 @@ class PlaybackEngine(
           Async.race(
             Async.sleep(delay).map(_ => Absent),
             commands.take.map(cmd => Maybe(cmd))
-          ).flatMap {
+          ).map {
             case Absent =>
               val next = state.copy(index = state.index + 1)
-              checkParagraphAutoPause(next, token)
+              val shouldPause = config.paragraphAutoPause &&
+                token.isEndOfParagraph(next.currentToken)
+              if shouldPause then Loop.continue(next.copy(status = PlayStatus.Paused))
+              else Loop.continue(next)
             case Present(cmd) =>
-              processCommand(cmd, state)
+              Loop.continue(applyCommand(cmd, state))
           }
         }
 
-  private def handlePaused(state: ViewState): Unit < (Async & Abort[Closed]) =
-    commands.take.flatMap(cmd => processCommand(cmd, state))
+  private def handlePaused(state: ViewState): Outcome < PlaybackEffect =
+    commands.take.map { cmd =>
+      val newState = applyCommand(cmd, state)
+      if newState.status == PlayStatus.Stopped then done
+      else Loop.continue(newState)
+    }
 
-  private def checkParagraphAutoPause(state: ViewState, prevToken: Token): Unit < (Async & Abort[Closed]) =
-    val shouldPause = config.paragraphAutoPause &&
-      prevToken.isEndOfParagraph(state.currentToken)
-    if shouldPause then loop(state.copy(status = PlayStatus.Paused))
-    else loop(state)
-
-  private def processCommand(cmd: Command, state: ViewState): Unit < (Async & Abort[Closed]) =
+  /** Pure function that applies a command to produce a new state. */
+  private def applyCommand(cmd: Command, state: ViewState): ViewState =
     cmd match
       case Command.Pause =>
-        val paused = state.copy(status = PlayStatus.Paused)
-        notify(paused).andThen(loop(paused))
+        state.copy(status = PlayStatus.Paused)
 
       case Command.Resume =>
-        loop(state.copy(status = PlayStatus.Playing))
+        state.copy(status = PlayStatus.Playing)
 
       case Command.Back(n) =>
-        val rewound = state.copy(index = Math.max(0, state.index - n))
-        notify(rewound).andThen(loop(rewound))
+        state.copy(index = Math.max(0, state.index - n))
 
       case Command.RestartSentence =>
         val currentSentence = state.currentToken.fold(-1)(_.sentenceIndex)
         val sentenceStart = findSentenceStart(state.tokens, state.index, currentSentence)
-        val restarted = state.copy(index = sentenceStart)
-        notify(restarted).andThen(loop(restarted))
+        state.copy(index = sentenceStart)
 
       case Command.SetSpeed(wpm) =>
-        loop(state.copy(wpm = wpm))
+        state.copy(wpm = wpm)
 
       case Command.Stop =>
-        // Reset to beginning and pause (allows resuming)
-        val reset = state.copy(index = 0, status = PlayStatus.Paused)
-        notify(reset).andThen(loop(reset))
+        state.copy(index = 0, status = PlayStatus.Paused)
 
   private def findSentenceStart(tokens: Span[Token], current: Int, sentenceIdx: Int): Int =
     var i = current

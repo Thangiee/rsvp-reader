@@ -1,6 +1,6 @@
 package rsvpreader.ui
 
-import com.raquo.laminar.api.L.{Var as LaminarVar, Signal as LaminarSignal, *}
+import com.raquo.laminar.api.L.{Var as LaminarVar, Signal as LaminarSignal, Span as _, *}
 import kyo.*
 import rsvpreader.*
 
@@ -29,23 +29,54 @@ object AppState:
 
   val config: RsvpConfig = RsvpConfig()
 
-  // Channel reference - set by Main during initialization
-  private var _channel: Maybe[Channel[Command]] = Absent
+  // Channel references - set by Main during initialization
+  private var _commandChannel: Result[String, Channel[Command]] = Result.fail("Command channel not initialized")
+  private var _tokensChannel: Result[String, Channel[Span[Token]]] = Result.fail("Tokens channel not initialized")
 
-  def setChannel(ch: Channel[Command]): Unit =
-    _channel = Maybe(ch)
+  def setCommandChannel(ch: Channel[Command]): Unit =
+    _commandChannel = Result.succeed(ch)
 
-  def getChannel: Channel[Command] =
-    _channel match
-      case Present(ch) => ch
-      case Absent => sys.error("Channel not initialized")
+  def setTokensChannel(ch: Channel[Span[Token]]): Unit =
+    _tokensChannel = Result.succeed(ch)
+
+  /** Returns the command channel, or fails with Abort if not initialized. */
+  def getCommandChannel: Channel[Command] < Abort[String] =
+    _commandChannel.fold(
+      onSuccess = ch => ch,
+      onFailure = err => Abort.fail(err),
+      onPanic = ex => Abort.fail(ex.getMessage)
+    )
+
+  /** Returns the tokens channel, or fails with Abort if not initialized. */
+  def getTokensChannel: Channel[Span[Token]] < Abort[String] =
+    _tokensChannel.fold(
+      onSuccess = ch => ch,
+      onFailure = err => Abort.fail(err),
+      onPanic = ex => Abort.fail(ex.getMessage)
+    )
+
+  /** Unsafe access to command channel - throws if not initialized. */
+  def unsafeGetCommandChannel(using AllowUnsafe): Channel[Command] =
+    _commandChannel.fold(
+      onSuccess = identity,
+      onFailure = err => throw new IllegalStateException(err),
+      onPanic = ex => throw ex
+    )
+
+  /** Unsafe access to tokens channel - throws if not initialized. */
+  def unsafeGetTokensChannel(using AllowUnsafe): Channel[Span[Token]] =
+    _tokensChannel.fold(
+      onSuccess = identity,
+      onFailure = err => throw new IllegalStateException(err),
+      onPanic = ex => throw ex
+    )
 
   // ─────────────────────────────────────────────────────────────────────────
   // Command Dispatch
   // ─────────────────────────────────────────────────────────────────────────
 
   def sendCommand(cmd: Command)(using AllowUnsafe): Unit =
-    _channel.foreach(_.unsafe.offer(cmd))
+    _commandChannel.foreach(_.unsafe.offer(cmd))
 
   def togglePlayPause()(using AllowUnsafe): Unit =
     viewState.now().status match

@@ -10,21 +10,42 @@ object Main extends KyoApp:
 
   renderOnDomContentLoaded(dom.document.getElementById("app"), Layout.app(onTextLoaded))
 
-  // Initialize channel at startup
+  // Initialize channels and start playback engine at startup
   run {
     direct {
-      val ch = Channel.init[Command](1).now
-      AppState.setChannel(ch)
+      // Initialize channels (unscoped to prevent closure)
+      val commandCh = Channel.initUnscoped[Command](1).now
+      val tokensCh = Channel.initUnscoped[kyo.Span[Token]](1).now
+      AppState.setCommandChannel(commandCh)
+      AppState.setTokensChannel(tokensCh)
+      Console.printLine("Channels initialized, waiting for text...").now
+
+      // Engine loop: wait for tokens, run playback, repeat
+      engineLoop(commandCh, tokensCh).now
     }
   }
 
+  // Separate method for the engine loop to avoid .now inside Loop body
+  private def engineLoop(
+    commandCh: Channel[Command],
+    tokensCh: Channel[kyo.Span[Token]]
+  ): Unit < Async =
+    // Wrap the whole loop in Abort.run to handle channel closure
+    Abort.run[Closed] {
+      Loop(()) { _ =>
+        for
+          tokens <- tokensCh.take
+          _      <- Console.printLine(s"Received ${tokens.length} tokens, starting playback")
+          engine  = PlaybackEngine(commandCh, AppState.config, state => AppState.viewState.set(state))
+          _      <- engine.run(tokens)
+          _      <- Console.printLine("Playback finished, waiting for next text...")
+        yield Loop.continue(())
+      }
+    }.unit
+
+  // Just send tokens through the channel - the engine loop will pick them up
   private def onTextLoaded(text: String): Unit =
     val tokens = Tokenizer.tokenize(text)
-    val ch = AppState.getChannel
-    val effect: Unit < (Async & Abort[Closed]) = direct {
-      val engine = PlaybackEngine(ch, AppState.config, state => AppState.viewState.set(state))
-      engine.run(tokens).now
-    }
-    // Start the async effect as a fiber (fire-and-forget)
-    val fiber = Fiber.init(Abort.run[Closed](effect))
-    val _ = Sync.Unsafe.run(fiber)
+    println(s"Loaded ${tokens.length} tokens, sending to engine")
+    AppState.unsafeGetTokensChannel.unsafe.offer(tokens)
+    ()
