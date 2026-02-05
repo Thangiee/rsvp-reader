@@ -214,10 +214,20 @@ object Components:
 
   def keyboardHints: HtmlElement = div(
     cls := "keyboard-hints",
-    div(cls := "key-hint", span(cls := "key", "Space"), "Play/Pause"),
-    div(cls := "key-hint", span(cls := "key", "←"), "Back"),
-    div(cls := "key-hint", span(cls := "key", "R"), "Restart"),
-    div(cls := "key-hint", span(cls := "key", "P"), "Paragraph")
+    children <-- AppState.currentKeyBindings.signal.map { bindings =>
+      Seq(
+        keyHint(bindings.keyFor(KeyAction.PlayPause), "Play/Pause"),
+        keyHint(bindings.keyFor(KeyAction.Back), "Back"),
+        keyHint(bindings.keyFor(KeyAction.RestartSentence), "Restart"),
+        keyHint(bindings.keyFor(KeyAction.ShowParagraph), "Paragraph")
+      )
+    }
+  )
+
+  private def keyHint(key: String, labelText: String): HtmlElement = div(
+    cls := "key-hint",
+    span(cls := "key", if key == " " then "Space" else key),
+    labelText
   )
 
   def textInputModal(onStart: String => Unit)(using AllowUnsafe): HtmlElement = div(
