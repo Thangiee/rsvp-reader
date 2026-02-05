@@ -3,10 +3,17 @@ ThisBuild / version      := "0.1.0-SNAPSHOT"
 
 lazy val kyoVersion    = "1.0-RC1"
 lazy val laminarVersion = "17.2.1"
+lazy val munitVersion   = "1.0.0"
 
 lazy val shared = crossProject(JVMPlatform, JSPlatform)
   .crossType(CrossType.Pure)
   .in(file("shared"))
+  .settings(
+    libraryDependencies ++= Seq(
+      "io.getkyo" %%% "kyo-prelude" % kyoVersion,
+      "org.scalameta" %%% "munit" % munitVersion % Test
+    )
+  )
 
 lazy val sharedJVM = shared.jvm
 lazy val sharedJS  = shared.js
