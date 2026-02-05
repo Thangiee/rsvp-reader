@@ -19,7 +19,13 @@ object AppState:
 
   val showParagraphView: LaminarVar[Boolean] = LaminarVar(false)
   val showTextInputModal: LaminarVar[Boolean] = LaminarVar(true) // Show on start
+  val showSettingsModal: LaminarVar[Boolean] = LaminarVar(false)
   val inputText: LaminarVar[String] = LaminarVar("")
+
+  // Settings state
+  val currentKeyBindings: LaminarVar[KeyBindings] = LaminarVar(KeyBindings.default)
+  val currentCenterMode: LaminarVar[CenterMode] = LaminarVar(CenterMode.ORP)
+  val capturingKeyFor: LaminarVar[Option[KeyAction]] = LaminarVar(None)
 
   val config: RsvpConfig = RsvpConfig()
 
@@ -84,3 +90,28 @@ object AppState:
 
   val wordProgress: LaminarSignal[String] =
     viewState.signal.map(s => s"${s.index + 1} / ${s.tokens.length}")
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Settings Persistence
+  // ─────────────────────────────────────────────────────────────────────────
+
+  def loadSettings(): Unit =
+    import org.scalajs.dom.window.localStorage
+    Option(localStorage.getItem("rsvp-centerMode"))
+      .foreach(s => currentCenterMode.set(CenterMode.fromString(s)))
+    // Load keybindings
+    KeyAction.values.foreach { action =>
+      Option(localStorage.getItem(s"rsvp-key-${action.toString}"))
+        .foreach { key =>
+          currentKeyBindings.update(_.withBinding(action, key))
+        }
+    }
+
+  def saveSettings(): Unit =
+    import org.scalajs.dom.window.localStorage
+    localStorage.setItem("rsvp-centerMode", currentCenterMode.now().toString.toLowerCase)
+    // Save keybindings
+    val bindings = currentKeyBindings.now()
+    KeyAction.values.foreach { action =>
+      localStorage.setItem(s"rsvp-key-${action.toString}", bindings.keyFor(action))
+    }

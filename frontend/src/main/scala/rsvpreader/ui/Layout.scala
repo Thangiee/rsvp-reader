@@ -52,8 +52,12 @@ object Layout:
     controlsDock,
     paragraphModal,
     Components.textInputModal(onTextLoaded),
+    Settings.modal,
     Components.keyboardHints,
     Components.keyboardHandler,
     tabIndex := 0,
-    onMountCallback(ctx => ctx.thisNode.ref.asInstanceOf[dom.html.Element].focus())
+    onMountCallback { ctx =>
+      ctx.thisNode.ref.asInstanceOf[dom.html.Element].focus()
+      AppState.loadSettings()
+    }
   )

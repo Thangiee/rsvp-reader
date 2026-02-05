@@ -657,6 +657,171 @@
         background: var(--accent-hover);
       }
 
+      /* Settings modal */
+      .settings-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(10, 10, 10, 0.95);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 150;
+      }
+
+      .settings-modal.visible {
+        display: flex;
+      }
+
+      .settings-content {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 2rem;
+        width: 90%;
+        max-width: 500px;
+        max-height: 80vh;
+        overflow-y: auto;
+      }
+
+      .settings-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+      }
+
+      .settings-header h2 {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 1rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+
+      .close-settings {
+        background: var(--control-bg);
+        border: 1px solid var(--border);
+        color: var(--text-secondary);
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 1rem;
+      }
+
+      .close-settings:hover {
+        background: var(--control-hover);
+        color: var(--text-primary);
+      }
+
+      .settings-section {
+        margin-bottom: 2rem;
+      }
+
+      .settings-section h3 {
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: var(--accent);
+        margin-bottom: 0.5rem;
+      }
+
+      .settings-desc {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-bottom: 1rem;
+      }
+
+      .radio-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .radio-option {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 0.9rem;
+        color: var(--text-primary);
+        cursor: pointer;
+      }
+
+      .radio-option input {
+        accent-color: var(--accent);
+      }
+
+      .keybindings-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .keybinding-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .action-name {
+        font-size: 0.85rem;
+        color: var(--text-primary);
+      }
+
+      .key-capture {
+        background: var(--control-bg);
+        border: 1px solid var(--border);
+        color: var(--text-secondary);
+        padding: 0.4rem 0.8rem;
+        border-radius: 4px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.75rem;
+        cursor: pointer;
+        min-width: 80px;
+        text-align: center;
+      }
+
+      .key-capture:hover {
+        border-color: var(--accent);
+      }
+
+      .key-capture.capturing {
+        background: var(--accent);
+        color: var(--bg-primary);
+        animation: pulse 1s infinite;
+      }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+      }
+
+      .settings-footer {
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+      }
+
+      .reset-btn {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+        padding: 0.6rem 1rem;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        cursor: pointer;
+      }
+
+      .reset-btn:hover {
+        color: var(--text-primary);
+        border-color: var(--text-muted);
+      }
+
       /* Responsive */
       @media (max-width: 600px) {
         .header {

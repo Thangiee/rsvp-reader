@@ -175,24 +175,41 @@ object Components:
       span(cls := "icon", "⏹"),
       "Reset",
       onClick --> (_ => AppState.sendCommand(Command.Stop))
+    ),
+    button(
+      cls := "control-chip",
+      span(cls := "icon", "⚙"),
+      "Settings",
+      onClick --> (_ => AppState.showSettingsModal.set(true))
     )
   )
 
   def keyboardHandler(using AllowUnsafe): Modifier[HtmlElement] =
     onKeyDown --> { event =>
-      event.key match
-        case " " =>
-          event.preventDefault()
-          AppState.togglePlayPause()
-        case "ArrowLeft"  => AppState.sendCommand(Command.Back(10))
-        case "r" | "R"    => AppState.sendCommand(Command.RestartSentence)
-        case "p" | "P"    =>
-          AppState.sendCommand(Command.Pause)
-          AppState.showParagraphView.update(!_)
-        case "Escape"     => AppState.showParagraphView.set(false)
-        case "ArrowUp"    => AppState.adjustSpeed(50)
-        case "ArrowDown"  => AppState.adjustSpeed(-50)
-        case _            => ()
+      // Don't handle if capturing key or settings modal is open
+      if AppState.capturingKeyFor.now().isEmpty && !AppState.showSettingsModal.now() then
+        val bindings = AppState.currentKeyBindings.now()
+        bindings.actionFor(event.key).foreach { action =>
+          action match
+            case KeyAction.PlayPause =>
+              event.preventDefault()
+              AppState.togglePlayPause()
+            case KeyAction.Back =>
+              AppState.sendCommand(Command.Back(10))
+            case KeyAction.RestartSentence =>
+              AppState.sendCommand(Command.RestartSentence)
+            case KeyAction.ShowParagraph =>
+              AppState.sendCommand(Command.Pause)
+              AppState.showParagraphView.update(!_)
+            case KeyAction.CloseParagraph =>
+              AppState.showParagraphView.set(false)
+            case KeyAction.SpeedUp =>
+              AppState.adjustSpeed(50)
+            case KeyAction.SpeedDown =>
+              AppState.adjustSpeed(-50)
+            case KeyAction.Reset =>
+              AppState.sendCommand(Command.Stop)
+        }
     }
 
   def keyboardHints: HtmlElement = div(
