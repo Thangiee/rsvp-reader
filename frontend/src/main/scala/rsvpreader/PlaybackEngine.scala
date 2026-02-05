@@ -15,8 +15,8 @@ class PlaybackEngine(
   onStateChange: ViewState => Unit
 ):
 
-  private def notify(state: ViewState): Unit < IO =
-    IO.Unsafe(onStateChange(state))
+  private def notify(state: ViewState): Unit < Sync =
+    Sync.Unsafe(onStateChange(state))
 
   def run(tokens: Span[Token]): Unit < (Async & Abort[Closed]) =
     val initial = ViewState.initial(tokens, config)

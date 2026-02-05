@@ -1,13 +1,16 @@
 package rsvpreader
 
-import com.raquo.laminar.api.L.{Var as LaminarVar, *}
+import com.raquo.laminar.api.L.{Var as LaminarVar, Signal as LaminarSignal, *}
 import org.scalajs.dom
 import kyo.*
 
 object Main extends KyoApp:
   import AllowUnsafe.embrace.danger
 
-  // Reactive state for UI
+  // ─────────────────────────────────────────────────────────────────────────
+  // State
+  // ─────────────────────────────────────────────────────────────────────────
+
   private val stateVar = LaminarVar(ViewState(
     tokens = Span.empty,
     index = 0,
@@ -15,67 +18,99 @@ object Main extends KyoApp:
     wpm = 300
   ))
 
-  // Paragraph view visibility
   private val showParagraphView = LaminarVar(false)
-
   private val config = RsvpConfig()
 
-  // Channel for commands - will be initialized in run block
-  private var commandChannel: Option[Channel[Command]] = None
+  // Channel reference - initialized in run block
+  private var channel: Maybe[Channel[Command]] = Absent
 
-  // Sample text for testing
+  // ─────────────────────────────────────────────────────────────────────────
+  // Sample Text
+  // ─────────────────────────────────────────────────────────────────────────
+
   private val sampleText = """The quick brown fox jumps over the lazy dog. This is a test sentence with some longer words like extraordinary and magnificent.
 
 Second paragraph begins here. It contains multiple sentences. Each sentence should be trackable. Reading fast improves comprehension when done correctly.
 
 A third paragraph demonstrates the paragraph pause feature. Notice how the reader handles punctuation, commas, and periods differently. The ORP alignment keeps your eye focused."""
 
-  // Helper to send commands
+  // ─────────────────────────────────────────────────────────────────────────
+  // Command Dispatch
+  // ─────────────────────────────────────────────────────────────────────────
+
   private def sendCommand(cmd: Command): Unit =
-    commandChannel.foreach { ch =>
-      // Use offer which returns Boolean < (IO & Abort[Closed])
-      // Discard the result as we just want fire-and-forget
-      ch.unsafe.offer(cmd)
+    channel.foreach(_.unsafe.offer(cmd))
+
+  private def togglePlayPause(): Unit =
+    stateVar.now().status match
+      case PlayStatus.Playing => sendCommand(Command.Pause)
+      case _                  => sendCommand(Command.Resume)
+
+  private def adjustSpeed(delta: Int): Unit =
+    val current = stateVar.now().wpm
+    val clamped = Math.max(100, Math.min(1000, current + delta))
+    sendCommand(Command.SetSpeed(clamped))
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Derived Signals
+  // ─────────────────────────────────────────────────────────────────────────
+
+  private val progressPercent: LaminarSignal[Double] =
+    stateVar.signal.map { s =>
+      if s.tokens.length == 0 then 0.0
+      else (s.index.toDouble / s.tokens.length) * 100.0
     }
 
-  // Calculate progress percentage
-  private def progressPercent(state: ViewState): Double =
-    if state.tokens.length == 0 then 0.0
-    else (state.index.toDouble / state.tokens.length.toDouble) * 100.0
+  private val focusContainerCls: LaminarSignal[String] =
+    stateVar.signal.map { s =>
+      if s.status == PlayStatus.Playing then "focus-container playing"
+      else "focus-container"
+    }
 
-  // Play/Pause button rendering
-  private def playPauseButton = button(
-    cls <-- stateVar.signal.map { state =>
+  private val statusDotCls: LaminarSignal[String] =
+    stateVar.signal.map { s =>
+      s.status match
+        case PlayStatus.Playing => "status-dot playing"
+        case PlayStatus.Paused  => "status-dot paused"
+        case PlayStatus.Stopped => "status-dot"
+    }
+
+  private val statusText: LaminarSignal[String] =
+    stateVar.signal.map(_.status.toString)
+
+  private val timeRemaining: LaminarSignal[String] =
+    stateVar.signal.map { s =>
+      val remaining = s.tokens.length - s.index
+      val minutes = remaining.toDouble / s.wpm
+      if minutes < 1 then "< 1 min" else s"~${minutes.toInt} min"
+    }
+
+  private val wordProgress: LaminarSignal[String] =
+    stateVar.signal.map(s => s"${s.index + 1} / ${s.tokens.length}")
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // UI Components
+  // ─────────────────────────────────────────────────────────────────────────
+
+  private def playPauseButton: HtmlElement = button(
+    cls <-- stateVar.signal.map { s =>
       val base = "control-btn large"
-      state.status match
+      s.status match
         case PlayStatus.Playing => s"$base playing"
-        case PlayStatus.Paused  => s"$base primary"
-        case PlayStatus.Stopped => s"$base primary"
+        case _                  => s"$base primary"
     },
-    child.text <-- stateVar.signal.map { state =>
-      state.status match
-        case PlayStatus.Playing => "⏸"
-        case _                  => "▶"
+    child.text <-- stateVar.signal.map { s =>
+      if s.status == PlayStatus.Playing then "⏸" else "▶"
     },
-    onClick --> { _ =>
-      val state = stateVar.now()
-      state.status match
-        case PlayStatus.Playing => sendCommand(Command.Pause)
-        case _                  => sendCommand(Command.Resume)
-    }
+    onClick --> (_ => togglePlayPause())
   )
 
-  // Speed control buttons
-  private def speedControls = div(
+  private def speedControls: HtmlElement = div(
     cls := "speed-control",
     button(
       cls := "control-btn small",
       "−",
-      onClick --> { _ =>
-        val current = stateVar.now().wpm
-        val newWpm = Math.max(100, current - 50)
-        sendCommand(Command.SetSpeed(newWpm))
-      }
+      onClick --> (_ => adjustSpeed(-50))
     ),
     div(
       cls := "speed-display",
@@ -85,47 +120,60 @@ A third paragraph demonstrates the paragraph pause feature. Notice how the reade
     button(
       cls := "control-btn small",
       "+",
-      onClick --> { _ =>
-        val current = stateVar.now().wpm
-        val newWpm = Math.min(1000, current + 50)
-        sendCommand(Command.SetSpeed(newWpm))
-      }
+      onClick --> (_ => adjustSpeed(50))
     )
   )
 
-  // Focus container class based on status
-  private def focusContainerCls = stateVar.signal.map { state =>
-    state.status match
-      case PlayStatus.Playing => "focus-container playing"
-      case _                  => "focus-container"
-  }
+  private def focusWord: HtmlElement = div(
+    cls := "focus-area",
+    child <-- stateVar.signal.map { s =>
+      s.currentToken match
+        case Absent => span(cls := "focus-placeholder", "READY TO READ")
+        case Present(token) =>
+          val text = token.text
+          val focus = token.focusIndex
+          span(
+            cls := "orp-word",
+            span(cls := "orp-before", text.take(focus)),
+            span(cls := "orp-focus", text.lift(focus).fold("")(_.toString)),
+            span(cls := "orp-after", text.drop(focus + 1))
+          )
+    }
+  )
 
-  // Status dot class
-  private def statusDotCls = stateVar.signal.map { state =>
-    state.status match
-      case PlayStatus.Playing => "status-dot playing"
-      case PlayStatus.Paused  => "status-dot paused"
-      case PlayStatus.Stopped => "status-dot"
-  }
+  private def trailArea: HtmlElement = div(
+    cls := "trail-area",
+    children <-- stateVar.signal.map { s =>
+      s.trailTokens(config.trailWordCount).map(t => span(cls := "trail-word", t.text))
+    }
+  )
 
-  // Status text
-  private def statusText = stateVar.signal.map { state =>
-    state.status match
-      case PlayStatus.Playing => "Playing"
-      case PlayStatus.Paused  => "Paused"
-      case PlayStatus.Stopped => "Stopped"
-  }
+  private def progressBar: HtmlElement = div(
+    cls := "progress-container",
+    div(
+      cls := "progress-bar",
+      div(
+        cls := "progress-fill",
+        styleAttr <-- progressPercent.map(p => s"width: ${p}%")
+      )
+    ),
+    div(
+      cls := "progress-stats",
+      span(child.text <-- wordProgress),
+      span(child.text <-- timeRemaining)
+    )
+  )
 
-  // Paragraph view content
-  private def paragraphContent = div(
+  private def paragraphContent: HtmlElement = div(
     cls := "paragraph-content",
-    children <-- stateVar.signal.map { state =>
-      state.currentParagraphTokens.zipWithIndex.map { case (token, idx) =>
-        val isCurrentWord = state.currentToken.fold(false)(t =>
+    children <-- stateVar.signal.map { s =>
+      val currentIdx = s.index
+      s.currentParagraphTokens.zipWithIndex.map { case (token, idx) =>
+        val isCurrent = s.currentToken.fold(false) { t =>
           t.text == token.text && t.sentenceIndex == token.sentenceIndex
-        )
+        }
         span(
-          cls := (if isCurrentWord then "current-word" else ""),
+          cls := (if isCurrent then "current-word" else ""),
           token.text,
           " "
         )
@@ -133,15 +181,69 @@ A third paragraph demonstrates the paragraph pause feature. Notice how the reade
     }
   )
 
-  private val app = div(
+  private def primaryControls: HtmlElement = div(
+    cls := "primary-controls",
+    button(
+      cls := "control-btn medium",
+      "⏪",
+      title := "Back 10 words",
+      onClick --> (_ => sendCommand(Command.Back(10)))
+    ),
+    button(
+      cls := "control-btn medium",
+      "↩",
+      title := "Restart sentence",
+      onClick --> (_ => sendCommand(Command.RestartSentence))
+    ),
+    playPauseButton,
+    speedControls
+  )
+
+  private def secondaryControls: HtmlElement = div(
+    cls := "secondary-controls",
+    button(
+      cls := "control-chip",
+      span(cls := "icon", "¶"),
+      "Show Paragraph",
+      onClick --> { _ =>
+        sendCommand(Command.Pause)
+        showParagraphView.set(true)
+      }
+    ),
+    button(
+      cls := "control-chip",
+      span(cls := "icon", "⏹"),
+      "Stop",
+      onClick --> (_ => sendCommand(Command.Stop))
+    )
+  )
+
+  private def keyboardHandler: Modifier[HtmlElement] =
+    onKeyDown --> { event =>
+      event.key match
+        case " " =>
+          event.preventDefault()
+          togglePlayPause()
+        case "ArrowLeft"  => sendCommand(Command.Back(10))
+        case "r" | "R"    => sendCommand(Command.RestartSentence)
+        case "p" | "P"    =>
+          sendCommand(Command.Pause)
+          showParagraphView.update(!_)
+        case "Escape"     => showParagraphView.set(false)
+        case "ArrowUp"    => adjustSpeed(50)
+        case "ArrowDown"  => adjustSpeed(-50)
+        case _            => ()
+    }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // App Layout
+  // ─────────────────────────────────────────────────────────────────────────
+
+  private val app: HtmlElement = div(
     // Header
     div(
       cls := "header",
-      div(
-        cls := "logo",
-        "RSVP ",
-        span("Reader")
-      ),
+      div(cls := "logo", "RSVP ", span("Reader")),
       div(
         cls := "status-indicator",
         div(cls <-- statusDotCls),
@@ -149,127 +251,23 @@ A third paragraph demonstrates the paragraph pause feature. Notice how the reade
       )
     ),
 
-    // Main reading theater
+    // Reading theater
     div(
       cls := "reading-theater",
-
-      // Focus word display with ORP alignment
       div(
         cls <-- focusContainerCls,
         div(cls := "orp-guides"),
-        div(
-          cls := "focus-area",
-          child <-- stateVar.signal.map { state =>
-            state.currentToken match
-              case Absent => span(cls := "focus-placeholder", "READY TO READ")
-              case Present(token) =>
-                val text = token.text
-                val focus = token.focusIndex
-                span(
-                  cls := "orp-word",
-                  span(cls := "orp-before", text.take(focus)),
-                  span(cls := "orp-focus", text.lift(focus).map(_.toString).getOrElse("")),
-                  span(cls := "orp-after", text.drop(focus + 1))
-                )
-          }
-        )
+        focusWord
       ),
-
-      // Trail display
-      div(
-        cls := "trail-area",
-        children <-- stateVar.signal.map { state =>
-          state.trailTokens(config.trailWordCount).map { token =>
-            span(cls := "trail-word", token.text)
-          }
-        }
-      ),
-
-      // Progress bar
-      div(
-        cls := "progress-container",
-        div(
-          cls := "progress-bar",
-          div(
-            cls := "progress-fill",
-            styleAttr <-- stateVar.signal.map { state =>
-              s"width: ${progressPercent(state)}%"
-            }
-          )
-        ),
-        div(
-          cls := "progress-stats",
-          span(
-            child.text <-- stateVar.signal.map { state =>
-              s"${state.index + 1} / ${state.tokens.length}"
-            }
-          ),
-          span(
-            child.text <-- stateVar.signal.map { state =>
-              val remaining = state.tokens.length - state.index
-              val minutes = remaining.toDouble / state.wpm
-              if minutes < 1 then s"< 1 min"
-              else s"~${minutes.toInt} min"
-            }
-          )
-        )
-      )
+      trailArea,
+      progressBar
     ),
 
     // Controls dock
     div(
       cls := "controls-dock",
-
-      // Primary controls row
-      div(
-        cls := "primary-controls",
-
-        // Back 10 words
-        button(
-          cls := "control-btn medium",
-          "⏪",
-          title := "Back 10 words",
-          onClick --> { _ => sendCommand(Command.Back(10)) }
-        ),
-
-        // Restart sentence
-        button(
-          cls := "control-btn medium",
-          "↩",
-          title := "Restart sentence",
-          onClick --> { _ => sendCommand(Command.RestartSentence) }
-        ),
-
-        // Play/Pause (main)
-        playPauseButton,
-
-        // Speed controls
-        speedControls
-      ),
-
-      // Secondary controls row
-      div(
-        cls := "secondary-controls",
-
-        // Show paragraph
-        button(
-          cls := "control-chip",
-          span(cls := "icon", "¶"),
-          "Show Paragraph",
-          onClick --> { _ =>
-            sendCommand(Command.Pause)
-            showParagraphView.set(true)
-          }
-        ),
-
-        // Stop/Reset
-        button(
-          cls := "control-chip",
-          span(cls := "icon", "⏹"),
-          "Stop",
-          onClick --> { _ => sendCommand(Command.Stop) }
-        )
-      )
+      primaryControls,
+      secondaryControls
     ),
 
     // Paragraph view modal
@@ -280,7 +278,7 @@ A third paragraph demonstrates the paragraph pause feature. Notice how the reade
       button(
         cls := "close-paragraph",
         "×",
-        onClick --> { _ => showParagraphView.set(false) }
+        onClick --> (_ => showParagraphView.set(false))
       ),
       paragraphContent
     ),
@@ -294,49 +292,26 @@ A third paragraph demonstrates the paragraph pause feature. Notice how the reade
       div(cls := "key-hint", span(cls := "key", "P"), "Paragraph")
     ),
 
-    // Keyboard event handler
-    onKeyDown --> { event =>
-      event.key match
-        case " " =>
-          event.preventDefault()
-          val state = stateVar.now()
-          if state.status == PlayStatus.Playing then sendCommand(Command.Pause)
-          else sendCommand(Command.Resume)
-        case "ArrowLeft" =>
-          sendCommand(Command.Back(10))
-        case "r" | "R" =>
-          sendCommand(Command.RestartSentence)
-        case "p" | "P" =>
-          sendCommand(Command.Pause)
-          showParagraphView.update(!_)
-        case "Escape" =>
-          showParagraphView.set(false)
-        case "ArrowUp" =>
-          val current = stateVar.now().wpm
-          sendCommand(Command.SetSpeed(Math.min(1000, current + 50)))
-        case "ArrowDown" =>
-          val current = stateVar.now().wpm
-          sendCommand(Command.SetSpeed(Math.max(100, current - 50)))
-        case _ => ()
-    },
-
-    // Focus the app for keyboard events
+    // Keyboard support
+    keyboardHandler,
     tabIndex := 0,
-    onMountCallback { ctx =>
-      ctx.thisNode.ref.asInstanceOf[dom.html.Element].focus()
-    }
+    onMountCallback(ctx => ctx.thisNode.ref.asInstanceOf[dom.html.Element].focus())
   )
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Entry Point
+  // ─────────────────────────────────────────────────────────────────────────
 
   renderOnDomContentLoaded(dom.document.getElementById("app"), app)
 
   run {
     direct {
       val ch = Channel.init[Command](1).now
-      commandChannel = Some(ch)
+      channel = Maybe(ch)
+
       val tokens = Tokenizer.tokenize(sampleText)
       val engine = PlaybackEngine(ch, config, state => stateVar.set(state))
 
-      // Start in paused state, ready to go
       engine.run(tokens).now
     }
   }
