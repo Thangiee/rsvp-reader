@@ -18,6 +18,8 @@ object AppState:
   ))
 
   val showParagraphView: LaminarVar[Boolean] = LaminarVar(false)
+  val showTextInputModal: LaminarVar[Boolean] = LaminarVar(true) // Show on start
+  val inputText: LaminarVar[String] = LaminarVar("")
 
   val config: RsvpConfig = RsvpConfig()
 

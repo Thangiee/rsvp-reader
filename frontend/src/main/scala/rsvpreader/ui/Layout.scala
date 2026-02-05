@@ -46,11 +46,12 @@ object Layout:
     Components.paragraphContent
   )
 
-  def app(using AllowUnsafe): HtmlElement = div(
+  def app(onTextLoaded: String => Unit)(using AllowUnsafe): HtmlElement = div(
     header,
     readingTheater,
     controlsDock,
     paragraphModal,
+    Components.textInputModal(onTextLoaded),
     Components.keyboardHints,
     Components.keyboardHandler,
     tabIndex := 0,

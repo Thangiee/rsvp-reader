@@ -117,6 +117,12 @@ object Components:
     cls := "secondary-controls",
     button(
       cls := "control-chip",
+      span(cls := "icon", "📝"),
+      "Load Text",
+      onClick --> (_ => AppState.showTextInputModal.set(true))
+    ),
+    button(
+      cls := "control-chip",
       span(cls := "icon", "¶"),
       "Show Paragraph",
       onClick --> { _ =>
@@ -127,7 +133,7 @@ object Components:
     button(
       cls := "control-chip",
       span(cls := "icon", "⏹"),
-      "Stop",
+      "Reset",
       onClick --> (_ => AppState.sendCommand(Command.Stop))
     )
   )
@@ -155,4 +161,32 @@ object Components:
     div(cls := "key-hint", span(cls := "key", "←"), "Back"),
     div(cls := "key-hint", span(cls := "key", "R"), "Restart"),
     div(cls := "key-hint", span(cls := "key", "P"), "Paragraph")
+  )
+
+  def textInputModal(onStart: String => Unit)(using AllowUnsafe): HtmlElement = div(
+    cls <-- AppState.showTextInputModal.signal.map { show =>
+      if show then "text-input-modal visible" else "text-input-modal"
+    },
+    div(
+      cls := "text-input-content",
+      h2("Load Text"),
+      textArea(
+        cls := "text-input-area",
+        placeholder := "Paste or type your text here...",
+        controlled(
+          value <-- AppState.inputText.signal,
+          onInput.mapToValue --> AppState.inputText.writer
+        )
+      ),
+      button(
+        cls := "start-reading-btn",
+        "Start Reading",
+        onClick --> { _ =>
+          val text = AppState.inputText.now()
+          if text.trim.nonEmpty then
+            onStart(text)
+            AppState.showTextInputModal.set(false)
+        }
+      )
+    )
   )
