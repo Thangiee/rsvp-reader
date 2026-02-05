@@ -173,3 +173,61 @@ class PlaybackEngineSuite extends FunSuite:
         assert(hadHigherIndex && hasResetToZero,
           s"Expected to see reset to index 0 after Stop. Before: ${statesBeforeResume.map(_.index)}, After: ${statesAfterResume.map(_.index)}")
     }
+
+  test("respects startDelay before first token"):
+    runTest {
+      for
+        commandCh <- Channel.init[Command](1)
+        stateCh   <- Channel.init[ViewState](10)
+        // Use a measurable but short startDelay
+        config     = RsvpConfig(
+                       baseWpm = Int.MaxValue,
+                       startDelay = 50.millis
+                     )
+        engine     = PlaybackEngine(commandCh, stateCh, config)
+        fiber     <- Fiber.init(engine.run(tokens))
+        // Initial state should be emitted immediately (before startDelay)
+        _         <- Async.sleep(5.millis)
+        initialStates <- drainStates(stateCh)
+        // Resume to start playback after startDelay passes
+        _         <- Async.sleep(60.millis)
+        _         <- commandCh.put(Command.Resume)
+        _         <- fiber.get
+        finalStates <- drainStates(stateCh)
+      yield
+        // Initial state emitted before delay
+        assertEquals(initialStates.length, 1, s"Expected 1 initial state, got: $initialStates")
+        assertEquals(initialStates.head.status, PlayStatus.Paused)
+        // Playback completed after resume
+        assertEquals(finalStates.last.status, PlayStatus.Stopped)
+    }
+
+  test("calculates correct delay based on WPM"):
+    runTest {
+      for
+        commandCh <- Channel.init[Command](1)
+        stateCh   <- Channel.init[ViewState](10)
+        // 600 WPM = 100ms per word, measurable but quick
+        config     = RsvpConfig(
+                       baseWpm = 600,
+                       startDelay = Duration.Zero,
+                       commaDelay = Duration.Zero,
+                       periodDelay = Duration.Zero,
+                       paragraphDelay = Duration.Zero,
+                       wordLengthEnabled = false
+                     )
+        singleToken = Span.from(Seq(Token("test", 1, Punctuation.None, 0, 0)))
+        engine      = PlaybackEngine(commandCh, stateCh, config)
+        fiber      <- Fiber.init(engine.run(singleToken))
+        // Resume to start playing
+        _          <- commandCh.put(Command.Resume)
+        // Check fiber not done before 100ms (use 50ms checkpoint)
+        _          <- Async.sleep(50.millis)
+        isDoneBefore <- fiber.done
+        // Wait past 100ms and complete
+        _          <- fiber.get
+        states     <- drainStates(stateCh)
+      yield
+        assert(!isDoneBefore, "Should not be done before delay elapses")
+        assertEquals(states.last.status, PlayStatus.Stopped)
+    }
