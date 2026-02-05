@@ -3,6 +3,64 @@
   <head>
     <meta charset="UTF-8">
     <title>RSVP Reader</title>
+    <style>
+      :root {
+        --bg-color: #f5f5f0;
+        --text-color: #3a3a3a;
+        --focus-color: #c44;
+        --trail-color: #8a8a8a;
+      }
+
+      body {
+        background: var(--bg-color);
+        color: var(--text-color);
+        font-family: Georgia, serif;
+        margin: 0;
+        padding: 20px;
+        min-height: 100vh;
+      }
+
+      h1 {
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+
+      .focus-area {
+        font-size: 2.5rem;
+        text-align: center;
+        padding: 2rem;
+        min-height: 4rem;
+      }
+
+      .orp-focus {
+        color: var(--focus-color);
+        font-weight: bold;
+      }
+
+      .trail-area {
+        color: var(--trail-color);
+        font-size: 0.9rem;
+        text-align: center;
+        opacity: 0.7;
+        min-height: 2rem;
+      }
+
+      .trail-word {
+        margin: 0 2px;
+      }
+
+      .status {
+        text-align: center;
+        font-size: 0.8rem;
+        color: var(--trail-color);
+        margin-top: 2rem;
+      }
+
+      .controls {
+        text-align: center;
+        margin-top: 2rem;
+      }
+    </style>
   </head>
   <body>
     <div id="app"></div>
