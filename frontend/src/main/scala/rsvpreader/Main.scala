@@ -61,7 +61,7 @@ object Main extends KyoApp:
   // ─────────────────────────────────────────────────────────────────────────────
   /** Session manager loop that waits for text and runs playback.
     *
-    * Flow: Wait for tokens → Create engine → Run playback → Repeat
+    * Flow: Wait for tokens → Create engine + state channel → Run both in parallel → Repeat
     *
     * This loop exists because DOM callbacks can't run Kyo async effects.
     * Instead, callbacks send tokens via channel, and this loop (running
@@ -77,11 +77,37 @@ object Main extends KyoApp:
         direct:
           val tokens = tokensCh.take.now // Block until user loads text
           Console.printLine(s"Received ${tokens.length} tokens, starting playback").now
-          val engine = PlaybackEngine(commandCh, AppState.config, state => AppState.viewState.set(state))
-          engine.run(tokens).now // Run playback to completion
+
+          // Create state channel for this playback session
+          // Using initUnscoped since we're inside a loop and need to manage lifetime manually
+          val stateCh = Channel.initUnscoped[ViewState](1).now
+          val engine = PlaybackEngine(commandCh, stateCh, AppState.config)
+
+          // Run engine and state consumer in parallel
+          // Race ensures both stop when engine completes
+          Async.race(
+            engine.run(tokens),
+            stateConsumerLoop(stateCh)
+          ).now
+
           Console.printLine("Playback finished, waiting for next text...").now
           Loop.continue(()).now // Loop back to wait for next text
     }.unit
+
+  /** Consumes state updates from PlaybackEngine and updates Laminar reactive state.
+    *
+    * Runs in parallel with engine.run(). When engine finishes and closes the channel,
+    * this loop exits via Abort[Closed].
+    */
+  private def stateConsumerLoop(
+    stateCh: Channel[ViewState]
+  ): Unit < (Async & Abort[Closed]) =
+    Loop(()) { _ =>
+      stateCh.take.map { state =>
+        AppState.viewState.set(state)
+        Loop.continue(())
+      }
+    }
 
   // ─────────────────────────────────────────────────────────────────────────────
   // DOM Callback - Sends tokens to engine loop via channel
