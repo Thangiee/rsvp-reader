@@ -27,6 +27,8 @@ lazy val frontend = project
   .settings(
     scalaJSUseMainModuleInitializer := true,
     libraryDependencies ++= Seq(
-      "com.raquo" %%% "laminar" % laminarVersion
+      "com.raquo"  %%% "laminar"  % laminarVersion,
+      "io.getkyo"  %%% "kyo-core"   % kyoVersion,
+      "io.getkyo"  %%% "kyo-direct" % kyoVersion
     )
   )

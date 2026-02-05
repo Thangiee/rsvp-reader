@@ -22,7 +22,7 @@ object Main extends KyoApp:
 
   run {
     for
-      _     <- Routes.run(helloRoute.andThen(indexRoute).andThen(jsRoute))
+      _     <- Routes.run(helloRoute.andThen(jsRoute).andThen(indexRoute))
       fiber <- Fiber.never
       _     <- Fiber.get(fiber)
     yield ()
