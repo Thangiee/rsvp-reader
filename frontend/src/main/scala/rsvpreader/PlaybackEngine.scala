@@ -3,11 +3,21 @@ package rsvpreader
 import kyo.*
 
 /** Async playback engine that displays tokens at configured speed with command handling.
-  * Uses Kyo Channel for responsive command processing (pause/resume interrupts sleep).
-  * Uses Kyo Loop for stack-safe state machine iteration.
   *
-  * @param commands      Channel for receiving playback commands
-  * @param config        RSVP timing configuration
+  * This is the "Word Iterator" loop - it handles playback of a SINGLE text:
+  * - Iterates through tokens word-by-word at configured WPM
+  * - Uses Async.race(sleep, command) to respond instantly to pause/resume
+  * - Manages state machine: Playing → Paused → Playing → ... → Stopped
+  * - Exits when all tokens displayed or Stop command received
+  *
+  * Note: This loop handles ONE reading session. The engineLoop in Main.scala
+  * handles MULTIPLE sessions by waiting for new text after this loop exits.
+  *
+  * Uses Kyo Channel for responsive command processing (pause/resume interrupts sleep).
+  * Uses Kyo Loop for stack-safe, explicit state machine semantics.
+  *
+  * @param commands      Channel for receiving playback commands (pause/resume/back/speed)
+  * @param config        RSVP timing configuration (WPM, delays, etc.)
   * @param onStateChange Callback invoked on each state update for UI rendering
   */
 class PlaybackEngine(
@@ -41,7 +51,15 @@ class PlaybackEngine(
       startLoop
     }
 
-  /** Main playback loop using Kyo Loop for explicit state machine semantics. */
+  /** Main playback loop - iterates through tokens word-by-word.
+    *
+    * State machine with three states:
+    * - Playing: Display word, sleep, advance (or handle command)
+    * - Paused: Wait for command (resume/back/etc.)
+    * - Stopped: Exit loop (Loop.done)
+    *
+    * Uses Kyo Loop for explicit continue/done semantics instead of recursion.
+    */
   private def playbackLoop(initial: ViewState): Unit < PlaybackEffect =
     Loop(initial) { state =>
       state.status match
