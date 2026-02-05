@@ -11,6 +11,7 @@ lazy val shared = crossProject(JVMPlatform, JSPlatform)
   .settings(
     libraryDependencies ++= Seq(
       "io.getkyo" %%% "kyo-prelude" % kyoVersion,
+      "io.getkyo" %%% "kyo-core"    % kyoVersion,
       "org.scalameta" %%% "munit" % munitVersion % Test
     )
   )

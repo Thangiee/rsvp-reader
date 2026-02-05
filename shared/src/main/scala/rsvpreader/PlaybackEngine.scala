@@ -10,20 +10,17 @@ import kyo.*
   * - Manages state machine: Playing → Paused → Playing → ... → Stopped
   * - Exits when all tokens displayed or Stop command received
   *
-  * Note: This loop handles ONE reading session. The engineLoop in Main.scala
-  * handles MULTIPLE sessions by waiting for new text after this loop exits.
-  *
   * Uses Kyo Channel for responsive command processing (pause/resume interrupts sleep).
   * Uses Kyo Loop for stack-safe, explicit state machine semantics.
   *
-  * @param commands      Channel for receiving playback commands (pause/resume/back/speed)
-  * @param config        RSVP timing configuration (WPM, delays, etc.)
-  * @param onStateChange Callback invoked on each state update for UI rendering
+  * @param commands Channel for receiving playback commands (pause/resume/back/speed)
+  * @param stateOut Channel for emitting state updates (replaces callback)
+  * @param config   RSVP timing configuration (WPM, delays, etc.)
   */
 class PlaybackEngine(
   commands: Channel[Command],
-  config: RsvpConfig,
-  onStateChange: ViewState => Unit
+  stateOut: Channel[ViewState],
+  config: RsvpConfig
 ):
   // Type alias for loop outcomes - either continue with new state or done with result
   private type Outcome = Loop.Outcome[ViewState, Unit]
@@ -34,15 +31,13 @@ class PlaybackEngine(
   // Helper to create done outcome with explicit types
   private def done: Outcome = Loop.done[ViewState, Unit](())
 
-  /** Notifies the UI of a state change. */
-  private def notify(state: ViewState): Unit < Sync =
-    Sync.Unsafe(onStateChange(state))
+  /** Emits state to the output channel. */
+  private def emit(state: ViewState): Unit < PlaybackEffect =
+    stateOut.put(state)
 
   def run(tokens: Span[Token]): Unit < PlaybackEffect =
     val initial = ViewState.initial(tokens, config)
-    println(s"PlaybackEngine.run: ${tokens.length} tokens, initial status=${initial.status}")
-    notify(initial).andThen {
-      println("PlaybackEngine: notify done, starting loop")
+    emit(initial).andThen {
       val startLoop =
         if config.startDelay > Duration.Zero then
           Async.sleep(config.startDelay).andThen(playbackLoop(initial))
@@ -72,10 +67,10 @@ class PlaybackEngine(
     state.currentToken match
       case Absent =>
         val stopped = state.copy(status = PlayStatus.Stopped)
-        notify(stopped).andThen(done)
+        emit(stopped).andThen(done)
 
       case Present(token) =>
-        notify(state).andThen {
+        emit(state).andThen {
           val delay = calculateDelay(token, config.copy(baseWpm = state.wpm))
 
           Async.race(
