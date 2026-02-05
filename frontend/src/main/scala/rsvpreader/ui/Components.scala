@@ -47,8 +47,17 @@ object Components:
         case Present(token) =>
           val text = token.text
           val focus = token.focusIndex
+          val centerMode = AppState.config.centerMode
+
+          // Calculate offset for centering
+          val offsetChars = centerMode match
+            case CenterMode.ORP   => focus
+            case CenterMode.First => 0
+            case CenterMode.None  => -1 // Signal no centering
+
           span(
             cls := "orp-word",
+            styleAttr := (if offsetChars >= 0 then s"--orp-offset: $offsetChars" else ""),
             span(cls := "orp-before", text.take(focus)),
             span(cls := "orp-focus", text.lift(focus).fold("")(_.toString)),
             span(cls := "orp-after", text.drop(focus + 1))

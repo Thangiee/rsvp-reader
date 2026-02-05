@@ -178,6 +178,11 @@
       .orp-word {
         display: inline-flex;
         position: relative;
+        /* Shift left so ORP lands at center */
+        /* Each character is ~0.6em in JetBrains Mono */
+        --char-width: 0.6em;
+        --orp-offset: 0;
+        transform: translateX(calc(var(--orp-offset) * var(--char-width) * -1));
       }
 
       .orp-before {
