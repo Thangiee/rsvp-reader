@@ -40,6 +40,11 @@ object Tokenizer:
       case Some(c) if ",;:".contains(c) => (word.init, Punctuation.Comma)
       case _ => (word, Punctuation.None)
 
-  private def calculateFocusIndex(word: String): Int =
-    if word.isEmpty then 0
-    else (word.length - 1) / 3
+  private def calculateFocusIndex(word: String): Int = {
+    word.length match
+      case 0 => 0
+      case 1 | 2 | 3 => 1
+      case 4 | 5 => 2
+      case 6 | 7 | 8 | 9 => 3
+      case _ => 4
+  }

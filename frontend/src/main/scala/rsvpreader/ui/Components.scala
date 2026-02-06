@@ -55,21 +55,24 @@ object Components:
 
   private def orpWordView(token: Token, index: Int): HtmlElement =
     val text = token.text
-    val focus = token.focusIndex
     val centerMode = AppState.currentCenterMode.now()
-    // Offset relative to word midpoint so the target char stays at screen center
     val halfLen = text.length / 2.0
-    val offset = centerMode match
-      case CenterMode.ORP   => focus - halfLen
-      case CenterMode.First => -halfLen
-      case CenterMode.None  => 0.0
+    val (focus, offset) = centerMode match
+      case CenterMode.ORP   => (token.focusIndex, -halfLen + .5 + token.focusIndex)
+      case CenterMode.First => (0, -halfLen + .5)
+      case CenterMode.None  => (-1, 0.0)
 
     span(
       cls := "orp-word",
       styleAttr := s"--orp-offset: $offset",
-      span(cls := "orp-before", text.take(focus)),
-      span(cls := "orp-focus", text.lift(focus).fold("")(_.toString)),
-      span(cls := "orp-after", text.drop(focus + 1))
+      if focus >= 0 then
+        div(
+          span(cls := "orp-before", text.take(focus)),
+          span(cls := "orp-focus", text.lift(focus).fold("")(_.toString)),
+          span(cls := "orp-after", text.drop(focus + 1))
+        )
+      else
+        span(cls := "orp-before", text)
     )
 
   private def pauseTextView(s: ViewState): HtmlElement =

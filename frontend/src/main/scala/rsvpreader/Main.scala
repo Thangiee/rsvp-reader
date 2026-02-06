@@ -46,7 +46,7 @@ object Main extends KyoApp:
       // - configRef: shared RSVP config, readable mid-playback for dynamic settings
       // - commandCh: UI sends commands (pause/resume/back) to PlaybackEngine
       // - tokensCh: UI sends tokenized text to engineLoop
-      val configRef = AtomicRef.init(RsvpConfig()).now
+      val configRef = AtomicRef.init(RsvpConfig(wordLengthFactor = .3)).now
       val commandCh = Channel.initUnscoped[Command](1).now
       val tokensCh = Channel.initUnscoped[kyo.Span[Token]](1).now
       AppState.setConfigRef(configRef)

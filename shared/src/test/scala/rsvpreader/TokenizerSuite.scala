@@ -33,15 +33,17 @@ class TokenizerSuite extends FunSuite:
     assertEquals(tokens(1).punctuation, Punctuation.Comma)
     assertEquals(tokens(2).punctuation, Punctuation.None)
 
-  test("tokenize calculates ORP focus index at ~1/3"):
-    val tokens = Tokenizer.tokenize("a ab abc abcd abcde abcdef")
-    // focusIndex = (length - 1) / 3
-    assertEquals(tokens(0).focusIndex, 0)  // "a": (1-1)/3 = 0
-    assertEquals(tokens(1).focusIndex, 0)  // "ab": (2-1)/3 = 0
-    assertEquals(tokens(2).focusIndex, 0)  // "abc": (3-1)/3 = 0
-    assertEquals(tokens(3).focusIndex, 1)  // "abcd": (4-1)/3 = 1
-    assertEquals(tokens(4).focusIndex, 1)  // "abcde": (5-1)/3 = 1
-    assertEquals(tokens(5).focusIndex, 1)  // "abcdef": (6-1)/3 = 1
+  test("tokenize calculates ORP focus index via lookup table"):
+    val tokens = Tokenizer.tokenize("a ab abc abcd abcde abcdef abcdefghi abcdefghij")
+    // length 1-3 => 1, 4-5 => 2, 6-9 => 3, 10+ => 4
+    assertEquals(tokens(0).focusIndex, 1)  // "a": len 1 => 1
+    assertEquals(tokens(1).focusIndex, 1)  // "ab": len 2 => 1
+    assertEquals(tokens(2).focusIndex, 1)  // "abc": len 3 => 1
+    assertEquals(tokens(3).focusIndex, 2)  // "abcd": len 4 => 2
+    assertEquals(tokens(4).focusIndex, 2)  // "abcde": len 5 => 2
+    assertEquals(tokens(5).focusIndex, 3)  // "abcdef": len 6 => 3
+    assertEquals(tokens(6).focusIndex, 3)  // "abcdefghi": len 9 => 3
+    assertEquals(tokens(7).focusIndex, 4)  // "abcdefghij": len 10 => 4
 
   test("tokenize tracks sentence indices"):
     val tokens = Tokenizer.tokenize("First sentence. Second sentence.")
