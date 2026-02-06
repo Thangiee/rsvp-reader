@@ -32,3 +32,16 @@ class ViewStateSuite extends FunSuite:
     val state = ViewState(tokens, -1, PlayStatus.Playing, 300)
     assertEquals(state.currentToken, Absent)
 
+  test("initial with startIndex resumes at given position"):
+    val state = ViewState.initial(tokens, config, startIndex = 2)
+    assertEquals(state.index, 2)
+    assertEquals(state.status, PlayStatus.Paused)
+
+  test("initial clamps startIndex to valid range"):
+    val state = ViewState.initial(tokens, config, startIndex = 100)
+    assertEquals(state.index, 3) // tokens.length - 1
+
+  test("initial clamps negative startIndex to 0"):
+    val state = ViewState.initial(tokens, config, startIndex = -5)
+    assertEquals(state.index, 0)
+

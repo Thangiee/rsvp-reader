@@ -20,5 +20,6 @@ case class ViewState(
     else Absent
 
 object ViewState:
-  def initial(tokens: Span[Token], config: RsvpConfig): ViewState =
-    ViewState(tokens, 0, PlayStatus.Paused, config.baseWpm)
+  def initial(tokens: Span[Token], config: RsvpConfig, startIndex: Int = 0): ViewState =
+    val clamped = if tokens.isEmpty then 0 else Math.min(startIndex, tokens.length - 1).max(0)
+    ViewState(tokens, clamped, PlayStatus.Paused, config.baseWpm)

@@ -72,10 +72,10 @@ object Components:
         div(
           span(cls := "orp-before", text.take(focus)),
           span(cls := "orp-focus", text.lift(focus).fold("")(_.toString)),
-          span(cls := "orp-after", text.drop(focus + 1))
+          span(cls := "orp-after", text.drop(focus + 1) + token.punctuation.text)
         )
       else
-        span(cls := "orp-before", text)
+        span(cls := "orp-before", text + token.punctuation.text)
     )
 
   private def pauseTextView(s: ViewState): HtmlElement =
@@ -125,31 +125,38 @@ object Components:
       if s.tokens.isEmpty || s.status == PlayStatus.Paused || s.status == PlayStatus.Finished then Seq.empty
       else
         val currentSentenceIdx = s.currentToken.fold(-1)(_.sentenceIndex)
+        val currentParagraphIdx = s.currentToken.fold(-1)(_.paragraphIndex)
         if currentSentenceIdx < 0 then Seq.empty
         else
-          // Compute paged window of sentence indices
-          val page = currentSentenceIdx / numSentences
-          val minSentence = page * numSentences
-          val maxSentence = minSentence + numSentences - 1
+          // Filter to current paragraph
+          val paraTokenIndices = (0 until s.tokens.length).filter(i => s.tokens(i).paragraphIndex == currentParagraphIdx)
+          if paraTokenIndices.isEmpty then Seq.empty
+          else
+            // Find the first sentence index in this paragraph for relative paging
+            val firstSentenceInPara = s.tokens(paraTokenIndices.head).sentenceIndex
+            val relativeSentence = currentSentenceIdx - firstSentenceInPara
+            val page = relativeSentence / numSentences
+            val minSentence = firstSentenceInPara + page * numSentences
+            val maxSentence = minSentence + numSentences - 1
 
-          (0 until s.tokens.length)
-            .filter { i =>
-              val si = s.tokens(i).sentenceIndex
-              si >= minSentence && si <= maxSentence
-            }
-            .map { i =>
-              val token = s.tokens(i)
-              val isCurrent = i == s.index
-              val isCurrentSentence = token.sentenceIndex == currentSentenceIdx
-              val cls0 = if isCurrent then "sentence-word current"
-                          else if !isCurrentSentence then "sentence-word dim"
-                          else "sentence-word"
-              span(
-                cls := cls0,
-                s"${token.text}${token.punctuation.text}",
-                " "
-              )
-            }
+            paraTokenIndices
+              .filter { i =>
+                val si = s.tokens(i).sentenceIndex
+                si >= minSentence && si <= maxSentence
+              }
+              .map { i =>
+                val token = s.tokens(i)
+                val isCurrent = i == s.index
+                val isCurrentSentence = token.sentenceIndex == currentSentenceIdx
+                val cls0 = if isCurrent then "sentence-word current"
+                            else if !isCurrentSentence then "sentence-word dim"
+                            else "sentence-word"
+                span(
+                  cls := cls0,
+                  s"${token.text}${token.punctuation.text}",
+                  " "
+                )
+              }
     }
   )
 
