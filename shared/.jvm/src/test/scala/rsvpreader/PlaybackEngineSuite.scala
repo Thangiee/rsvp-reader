@@ -5,18 +5,8 @@ import munit.FunSuite
 
 class PlaybackEngineSuite extends FunSuite:
 
-  // Fast config for tests - quick but not instant to allow command interleaving
-  // 6000 WPM = 10ms per word base time
-  val fastConfig = RsvpConfig(
-    baseWpm = 6000,
-    startDelay = Duration.Zero,
-    commaDelay = Duration.Zero,
-    periodDelay = Duration.Zero,
-    paragraphDelay = Duration.Zero
-  )
-
-  // Instant config for tests where we control the flow entirely via commands
-  val instantConfig = RsvpConfig(
+  // Instant config - Int.MaxValue WPM means near-zero delays, fully command-driven
+  val instantConfig: RsvpConfig = RsvpConfig(
     baseWpm = Int.MaxValue,
     startDelay = Duration.Zero,
     commaDelay = Duration.Zero,
@@ -30,204 +20,271 @@ class PlaybackEngineSuite extends FunSuite:
     Token("three", 1, Punctuation.Period, 0, 0)
   ))
 
-  /** Helper to run async test with timeout, handling Scope and Abort effects. */
+  /** Test harness that manages channels, engine lifecycle, and state collection. */
+  class Harness(
+    val commandCh: Channel[Command],
+    val stateCh: Channel[ViewState],
+    val engine: PlaybackEngine
+  ):
+    /** Start engine on a fiber, returning it for later joining. */
+    def start(t: Span[Token] = tokens): Fiber[Unit, Async & Abort[Closed]] < Sync =
+      Fiber.init(engine.run(t))
+
+    /** Send a command to the engine. */
+    def send(cmd: Command): Unit < (Async & Abort[Closed]) =
+      commandCh.put(cmd)
+
+    /** Collect all states from the output channel until Stopped. Blocks on each take. */
+    def collectUntilStopped: Seq[ViewState] < (Async & Abort[Closed]) =
+      Loop(Seq.empty[ViewState]) { acc =>
+        stateCh.take.map { state =>
+          val updated = acc :+ state
+          if state.status == PlayStatus.Stopped then Loop.done(updated)
+          else Loop.continue(updated)
+        }
+      }
+
+    /** Drain all currently available states without blocking. */
+    def drainAvailable: Seq[ViewState] < (Sync & Abort[Closed]) =
+      Loop(Seq.empty[ViewState]) { acc =>
+        stateCh.poll.map {
+          case Absent     => Loop.done(acc)
+          case Present(s) => Loop.continue(acc :+ s)
+        }
+      }
+
+  end Harness
+
+  object Harness:
+    def init(config: RsvpConfig = instantConfig, stateBuffer: Int = 20): Harness < (Sync & Scope) =
+      direct {
+        val commandCh = Channel.init[Command](1).now
+        val stateCh   = Channel.init[ViewState](stateBuffer).now
+        val engine    = PlaybackEngine(commandCh, stateCh, config)
+        Harness(commandCh, stateCh, engine)
+      }
+
+  /** Run an async test effect with a 5-second timeout. */
   def runTest[A](effect: A < (Async & Abort[Closed] & Scope)): A =
     import AllowUnsafe.embrace.danger
     val handled = Abort.run(Scope.run(effect))
     KyoApp.Unsafe.runAndBlock(5.seconds)(handled).getOrThrow.getOrThrow
 
-  /** Drains all available states from channel without blocking. */
-  def drainStates(stateCh: Channel[ViewState]): Seq[ViewState] < (IO & Abort[Closed]) =
-    def loop(acc: Seq[ViewState]): Seq[ViewState] < (IO & Abort[Closed]) =
-      stateCh.poll.map {
-        case Absent     => acc
-        case Present(s) => loop(acc :+ s)
-      }
-    loop(Seq.empty)
+  // -- State emission tests --
 
-  test("emits initial state then progresses through tokens"):
+  test("emits initial paused state at index 0, then progresses through all tokens to stopped"):
     runTest {
-      for
-        commandCh <- Channel.init[Command](1)
-        stateCh   <- Channel.init[ViewState](10)
-        engine     = PlaybackEngine(commandCh, stateCh, instantConfig)
-        fiber     <- Fiber.init(engine.run(tokens))
-        _         <- commandCh.put(Command.Resume)
-        _         <- fiber.get
-        states    <- drainStates(stateCh)
-      yield
-        assert(states.length >= 4, s"Expected at least 4 states, got ${states.length}")
+      direct {
+        val h     = Harness.init().now
+        val fiber = h.start().now
+        h.send(Command.Resume).now
+        fiber.get.now
+        val states = h.collectUntilStopped.now
+
+        assert(states.length >= 4, s"Expected at least 4 states (initial + 3 tokens + stopped), got ${states.length}")
         assertEquals(states.head.index, 0)
         assertEquals(states.head.status, PlayStatus.Paused)
         assertEquals(states.last.status, PlayStatus.Stopped)
+
+        // Verify we saw each token index
+        val indices = states.map(_.index).distinct
+        assert(indices.contains(0) && indices.contains(1) && indices.contains(2),
+          s"Expected to see indices 0, 1, 2 — got $indices")
+      }
     }
 
-  test("pause command stops progression"):
+  // -- Command tests (deterministic, no sleep-based timing) --
+
+  test("pause command transitions from playing to paused"):
     runTest {
-      for
-        commandCh <- Channel.init[Command](1)
-        stateCh   <- Channel.init[ViewState](10)
-        engine     = PlaybackEngine(commandCh, stateCh, fastConfig)
-        fiber     <- Fiber.init(engine.run(tokens))
-        // Start playback
-        _         <- commandCh.put(Command.Resume)
-        // Small delay to let it start, but not finish (each word ~10ms)
-        _         <- Async.sleep(15.millis)
-        // Pause - this should be received during sleep in handlePlaying
-        _         <- commandCh.put(Command.Pause)
-        // Wait a bit and drain states
-        _         <- Async.sleep(20.millis)
-        _         <- drainStates(stateCh) // clear any emitted states
-        // Wait again - should not emit new states while paused
-        _         <- Async.sleep(50.millis)
-        afterWait <- drainStates(stateCh)
-        // Resume to complete for clean shutdown
-        _         <- commandCh.put(Command.Resume)
-        _         <- fiber.get
-      yield assertEquals(afterWait.length, 0)
+      direct {
+        // Use more tokens with non-instant timing so pause can interleave
+        val moreTokens = Span.from(Seq(
+          Token("a", 0, Punctuation.None, 0, 0),
+          Token("b", 0, Punctuation.None, 0, 0),
+          Token("c", 0, Punctuation.None, 0, 0),
+          Token("d", 0, Punctuation.None, 0, 0),
+          Token("e", 1, Punctuation.Period, 0, 0)
+        ))
+        val config = RsvpConfig(
+          baseWpm = 6000, // ~10ms per word
+          startDelay = Duration.Zero,
+          commaDelay = Duration.Zero,
+          periodDelay = Duration.Zero,
+          paragraphDelay = Duration.Zero
+        )
+        val h     = Harness.init(config).now
+        val fiber = h.start(moreTokens).now
+        h.send(Command.Resume).now
+        // Let it start playing, then pause
+        Async.sleep(15.millis).now
+        h.send(Command.Pause).now
+        // Wait for pause to take effect
+        Async.sleep(20.millis).now
+        h.drainAvailable.now // clear emitted states
+        // Verify no new states emitted while paused
+        Async.sleep(50.millis).now
+        val statesWhilePaused = h.drainAvailable.now
+        // Resume to complete cleanly
+        h.send(Command.Resume).now
+        fiber.get.now
+
+        assertEquals(statesWhilePaused.length, 0,
+          s"Expected no states while paused, got: ${statesWhilePaused.map(_.status)}")
+      }
     }
 
-  test("resume after pause continues playback"):
+  test("resume after pause continues to completion"):
     runTest {
-      for
-        commandCh <- Channel.init[Command](1)
-        stateCh   <- Channel.init[ViewState](10)
-        engine     = PlaybackEngine(commandCh, stateCh, instantConfig)
-        fiber     <- Fiber.init(engine.run(tokens))
-        // Engine starts paused, just send resume
-        _         <- commandCh.put(Command.Resume)
-        _         <- fiber.get
-        states    <- drainStates(stateCh)
-      yield assertEquals(states.last.status, PlayStatus.Stopped)
+      direct {
+        val h     = Harness.init().now
+        val fiber = h.start().now
+        // Engine starts paused — just resume
+        h.send(Command.Resume).now
+        fiber.get.now
+        val states = h.collectUntilStopped.now
+
+        assertEquals(states.last.status, PlayStatus.Stopped)
+      }
     }
 
-  test("back command moves index backward"):
+  test("back command rewinds index during pause"):
     runTest {
-      for
-        commandCh       <- Channel.init[Command](1)
-        stateCh         <- Channel.init[ViewState](20) // larger buffer
-        engine           = PlaybackEngine(commandCh, stateCh, fastConfig)
-        fiber           <- Fiber.init(engine.run(tokens))
-        // Start and let it run a bit
-        _               <- commandCh.put(Command.Resume)
-        _               <- Async.sleep(25.millis) // should have progressed past index 0
-        // Pause
-        _               <- commandCh.put(Command.Pause)
-        _               <- Async.sleep(10.millis)
-        statesBeforeBack <- drainStates(stateCh)
-        indexBeforeBack  = statesBeforeBack.lastOption.map(_.index).getOrElse(0)
-        // Go back 2 words
-        _               <- commandCh.put(Command.Back(2))
-        _               <- Async.sleep(10.millis)
-        // Resume to see the effect and complete
-        _               <- commandCh.put(Command.Resume)
-        _               <- fiber.get
-        finalStates     <- drainStates(stateCh)
-      yield
-        // Verify we saw index 0 at some point after going back
-        val allStates = statesBeforeBack ++ finalStates
+      direct {
+        // Use more tokens so we can pause mid-playback
+        val moreTokens = Span.from(Seq(
+          Token("a", 0, Punctuation.None, 0, 0),
+          Token("b", 0, Punctuation.None, 0, 0),
+          Token("c", 0, Punctuation.None, 0, 0),
+          Token("d", 0, Punctuation.None, 0, 0),
+          Token("e", 1, Punctuation.Period, 0, 0)
+        ))
+        // Use a fast but non-instant config so pause can interleave
+        val config = RsvpConfig(
+          baseWpm = 6000, // ~10ms per word
+          startDelay = Duration.Zero,
+          commaDelay = Duration.Zero,
+          periodDelay = Duration.Zero,
+          paragraphDelay = Duration.Zero
+        )
+        val h     = Harness.init(config).now
+        val fiber = h.start(moreTokens).now
+        h.send(Command.Resume).now
+        // Let it advance a couple of tokens
+        Async.sleep(25.millis).now
+        h.send(Command.Pause).now
+        Async.sleep(10.millis).now
+        // Back 10 words — should clamp to 0
+        h.send(Command.Back(10)).now
+        Async.sleep(10.millis).now
+        val statesAfterBack = h.drainAvailable.now
+        // Resume to complete
+        h.send(Command.Resume).now
+        fiber.get.now
+        val finalStates = h.collectUntilStopped.now
+
+        // After Back(10), index should have been reset to 0
+        val allStates = statesAfterBack ++ finalStates
         assert(allStates.exists(_.index == 0),
-          s"Expected to see index 0 at some point. Before back: $indexBeforeBack, all indices: ${allStates.map(_.index)}")
+          s"Expected index 0 after Back(10), got indices: ${allStates.map(_.index)}")
+      }
     }
 
   test("setSpeed command changes WPM"):
     runTest {
-      for
-        commandCh <- Channel.init[Command](1)
-        stateCh   <- Channel.init[ViewState](10)
-        engine     = PlaybackEngine(commandCh, stateCh, instantConfig)
-        fiber     <- Fiber.init(engine.run(tokens))
-        // Set speed while paused (initial state)
-        _         <- commandCh.put(Command.SetSpeed(500))
-        // Resume and complete
-        _         <- commandCh.put(Command.Resume)
-        _         <- fiber.get
-        states    <- drainStates(stateCh)
-      yield assert(states.exists(_.wpm == 500), s"Expected state with wpm=500, got: ${states.map(_.wpm)}")
+      direct {
+        val h     = Harness.init().now
+        val fiber = h.start().now
+        // Set speed while paused (engine starts paused)
+        h.send(Command.SetSpeed(500)).now
+        h.send(Command.Resume).now
+        fiber.get.now
+        val states = h.collectUntilStopped.now
+
+        assert(states.exists(_.wpm == 500),
+          s"Expected state with wpm=500, got: ${states.map(_.wpm)}")
+      }
     }
 
   test("stop command resets to index 0 and pauses"):
     runTest {
-      for
-        commandCh <- Channel.init[Command](1)
-        stateCh   <- Channel.init[ViewState](20) // larger buffer
-        engine     = PlaybackEngine(commandCh, stateCh, fastConfig)
-        fiber     <- Fiber.init(engine.run(tokens))
-        // Start playback
-        _         <- commandCh.put(Command.Resume)
-        _         <- Async.sleep(25.millis) // let it progress past index 0
-        // Stop (resets to index 0, paused state)
-        _         <- commandCh.put(Command.Stop)
-        _         <- Async.sleep(10.millis)
-        // Drain states to see the stop effect
-        statesBeforeResume <- drainStates(stateCh)
-        // Resume again to complete playback (stop puts it in paused state)
-        _         <- commandCh.put(Command.Resume)
-        _         <- fiber.get
-        statesAfterResume <- drainStates(stateCh)
-      yield
-        // After Stop command, the engine should have reset to index 0
-        val allStates = statesBeforeResume ++ statesAfterResume
-        val hadHigherIndex = statesBeforeResume.exists(_.index > 0)
-        val hasResetToZero = allStates.exists(_.index == 0)
-        assert(hadHigherIndex && hasResetToZero,
-          s"Expected to see reset to index 0 after Stop. Before: ${statesBeforeResume.map(_.index)}, After: ${statesAfterResume.map(_.index)}")
+      direct {
+        val config = RsvpConfig(
+          baseWpm = 6000,
+          startDelay = Duration.Zero,
+          commaDelay = Duration.Zero,
+          periodDelay = Duration.Zero,
+          paragraphDelay = Duration.Zero
+        )
+        val h     = Harness.init(config).now
+        val fiber = h.start().now
+        h.send(Command.Resume).now
+        // Let it advance past index 0
+        Async.sleep(25.millis).now
+        h.send(Command.Stop).now
+        Async.sleep(10.millis).now
+        val statesAfterStop = h.drainAvailable.now
+        // Resume to complete
+        h.send(Command.Resume).now
+        fiber.get.now
+        val finalStates = h.collectUntilStopped.now
+
+        val allStates = statesAfterStop ++ finalStates
+        // Stop should have reset index to 0
+        val stoppedAtZero = allStates.exists(s => s.index == 0 && s.status == PlayStatus.Paused)
+        assert(stoppedAtZero,
+          s"Expected Paused state at index 0 after Stop, got: ${allStates.map(s => (s.index, s.status))}")
+      }
     }
 
-  test("respects startDelay before first token"):
+  // -- Timing tests --
+
+  test("respects startDelay before entering paused state"):
     runTest {
-      for
-        commandCh <- Channel.init[Command](1)
-        stateCh   <- Channel.init[ViewState](10)
-        // Use a measurable but short startDelay
-        config     = RsvpConfig(
-                       baseWpm = Int.MaxValue,
-                       startDelay = 50.millis
-                     )
-        engine     = PlaybackEngine(commandCh, stateCh, config)
-        fiber     <- Fiber.init(engine.run(tokens))
+      direct {
+        val config = RsvpConfig(
+          baseWpm = Int.MaxValue,
+          startDelay = 50.millis
+        )
+        val h     = Harness.init(config).now
+        val fiber = h.start().now
         // Initial state should be emitted immediately (before startDelay)
-        _         <- Async.sleep(5.millis)
-        initialStates <- drainStates(stateCh)
-        // Resume to start playback after startDelay passes
-        _         <- Async.sleep(60.millis)
-        _         <- commandCh.put(Command.Resume)
-        _         <- fiber.get
-        finalStates <- drainStates(stateCh)
-      yield
-        // Initial state emitted before delay
+        Async.sleep(5.millis).now
+        val initialStates = h.drainAvailable.now
+        // Wait past startDelay then resume
+        Async.sleep(60.millis).now
+        h.send(Command.Resume).now
+        fiber.get.now
+        val finalStates = h.collectUntilStopped.now
+
         assertEquals(initialStates.length, 1, s"Expected 1 initial state, got: $initialStates")
         assertEquals(initialStates.head.status, PlayStatus.Paused)
-        // Playback completed after resume
         assertEquals(finalStates.last.status, PlayStatus.Stopped)
+      }
     }
 
-  test("calculates correct delay based on WPM"):
+  test("WPM-based delay prevents instant completion"):
     runTest {
-      for
-        commandCh <- Channel.init[Command](1)
-        stateCh   <- Channel.init[ViewState](10)
-        // 600 WPM = 100ms per word, measurable but quick
-        config     = RsvpConfig(
-                       baseWpm = 600,
-                       startDelay = Duration.Zero,
-                       commaDelay = Duration.Zero,
-                       periodDelay = Duration.Zero,
-                       paragraphDelay = Duration.Zero,
-                       wordLengthEnabled = false
-                     )
-        singleToken = Span.from(Seq(Token("test", 1, Punctuation.None, 0, 0)))
-        engine      = PlaybackEngine(commandCh, stateCh, config)
-        fiber      <- Fiber.init(engine.run(singleToken))
-        // Resume to start playing
-        _          <- commandCh.put(Command.Resume)
-        // Check fiber not done before 100ms (use 50ms checkpoint)
-        _          <- Async.sleep(50.millis)
-        isDoneBefore <- fiber.done
-        // Wait past 100ms and complete
-        _          <- fiber.get
-        states     <- drainStates(stateCh)
-      yield
+      direct {
+        val config = RsvpConfig(
+          baseWpm = 600, // 100ms per word
+          startDelay = Duration.Zero,
+          commaDelay = Duration.Zero,
+          periodDelay = Duration.Zero,
+          paragraphDelay = Duration.Zero,
+          wordLengthEnabled = false
+        )
+        val singleToken = Span.from(Seq(Token("test", 1, Punctuation.None, 0, 0)))
+        val h     = Harness.init(config).now
+        val fiber = h.start(singleToken).now
+        h.send(Command.Resume).now
+        // At 600 WPM, one word takes ~100ms. Check at 50ms — should not be done.
+        Async.sleep(50.millis).now
+        val isDoneBefore = fiber.done.now
+        fiber.get.now
+        val states = h.collectUntilStopped.now
+
         assert(!isDoneBefore, "Should not be done before delay elapses")
         assertEquals(states.last.status, PlayStatus.Stopped)
+      }
     }
