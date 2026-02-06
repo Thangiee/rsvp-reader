@@ -16,7 +16,10 @@ object Components:
         case _                  => s"$base primary"
     },
     child.text <-- AppState.viewState.signal.map { s =>
-      if s.status == PlayStatus.Playing then "⏸" else "▶"
+      s.status match
+        case PlayStatus.Playing  => "⏸"
+        case PlayStatus.Finished => "⟳"
+        case _                   => "▶"
     },
     onClick --> (_ => AppState.togglePlayPause())
   )

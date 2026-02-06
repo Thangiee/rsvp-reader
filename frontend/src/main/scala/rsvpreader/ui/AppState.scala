@@ -110,7 +110,8 @@ object AppState:
   val progressPercent: LaminarSignal[Double] =
     viewState.signal.map { s =>
       if s.tokens.length == 0 then 0.0
-      else (s.index.toDouble / s.tokens.length) * 100.0
+      else if s.tokens.length <= 1 then 100.0
+      else (s.index.toDouble / (s.tokens.length - 1)) * 100.0
     }
 
   val focusContainerCls: LaminarSignal[String] =
