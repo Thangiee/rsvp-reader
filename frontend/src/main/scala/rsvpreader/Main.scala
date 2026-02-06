@@ -35,6 +35,7 @@ object Main extends KyoApp:
 
   // Load settings early so savedWpm is available for RsvpConfig initialization
   AppState.loadSettings()
+  AppState.registerPositionSaver()
 
   renderOnDomContentLoaded(dom.document.getElementById("app"), Layout.app(onTextLoaded))
 
@@ -83,6 +84,8 @@ object Main extends KyoApp:
     // Wrap in Abort.run to handle channel closure (e.g., if app shuts down)
     Abort.run[Closed] {
       Loop(()): _ =>
+        // Read mutable field outside direct block (Kyo disallows mutable access inside direct)
+        val startIndex = AppState.savedPosition.map(_._2).getOrElse(0)
         direct:
           val tokens = tokensCh.take.now // Block until user loads text
           Console.printLine(s"Received ${tokens.length} tokens, starting playback").now
@@ -98,8 +101,8 @@ object Main extends KyoApp:
             Abort.run[Closed](stateConsumerLoop(stateCh))
           ).now
 
-          // Run engine — blocks until playback finishes
-          engine.run(tokens).now
+          // Run engine — blocks until playback finishes (resume from saved position if any)
+          engine.run(tokens, startIndex).now
 
           // Close state channel: returns any buffered states the consumer hasn't taken,
           // and causes the consumer's next take to abort with Closed.
@@ -107,6 +110,7 @@ object Main extends KyoApp:
           // after it dequeued a state but before the continuation (UI update) ran.
           val remaining = stateCh.close.now
           remaining.foreach(_.foreach(s => AppState.viewState.set(s)))
+          AppState.savePosition()
 
           Console.printLine("Playback finished, waiting for next text...").now
           Loop.continue(()).now // Loop back to wait for next text
@@ -138,7 +142,12 @@ object Main extends KyoApp:
     */
   private def onTextLoaded(text: String): Unit =
     val tokens = Tokenizer.tokenize(text)
-    println(s"Loaded ${tokens.length} tokens, sending to engine")
+    val textHash = text.hashCode
+    val startIndex = AppState.savedPosition match
+      case Some((hash, idx)) if hash == textHash => idx
+      case _ => 0
+    AppState.savedPosition = Some((textHash, startIndex))
+    println(s"Loaded ${tokens.length} tokens (resuming at $startIndex), sending to engine")
     // unsafe.offer is non-blocking - returns false if channel is full
     AppState.unsafeGetTokensChannel.unsafe.offer(tokens)
     ()

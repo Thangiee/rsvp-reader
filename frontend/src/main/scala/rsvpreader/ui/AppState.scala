@@ -87,6 +87,7 @@ object AppState:
 
   def sendCommand(cmd: Command)(using AllowUnsafe): Unit =
     _commandChannel.foreach(_.unsafe.offer(cmd))
+    if cmd == Command.Pause then savePosition()
 
   def togglePlayPause()(using AllowUnsafe): Unit =
     viewState.now().status match
@@ -154,6 +155,9 @@ object AppState:
   /** WPM loaded from localStorage (if any), used by Main to initialize RsvpConfig. */
   var savedWpm: Option[Int] = None
 
+  /** Position loaded from localStorage (if any), used by Main to resume playback. */
+  var savedPosition: Option[(Int, Int)] = None // (textHash, index)
+
   def loadSettings(): Unit =
     import org.scalajs.dom.window.localStorage
     Option(localStorage.getItem("rsvp-centerMode"))
@@ -177,6 +181,16 @@ object AppState:
         savedWpm = Some(w)
         viewState.update(_.copy(wpm = w))
       }
+    // Load saved position
+    Option(localStorage.getItem("rsvp-position"))
+      .foreach { raw =>
+        val parts = raw.split(":")
+        if parts.length == 2 then
+          for
+            hash <- scala.util.Try(parts(0).toInt).toOption
+            idx  <- scala.util.Try(parts(1).toInt).toOption
+          do savedPosition = Some((hash, idx))
+      }
     // Load saved input text
     Option(localStorage.getItem("rsvp-inputText"))
       .filter(_.trim.nonEmpty)
@@ -193,3 +207,14 @@ object AppState:
     localStorage.setItem("rsvp-contextSentences", contextSentences.now().toString)
     localStorage.setItem("rsvp-wpm", viewState.now().wpm.toString)
     localStorage.setItem("rsvp-inputText", inputText.now())
+
+  def savePosition(): Unit =
+    import org.scalajs.dom.window.localStorage
+    val s = viewState.now()
+    val text = inputText.now()
+    if text.trim.nonEmpty then
+      localStorage.setItem("rsvp-position", s"${text.hashCode}:${s.index}")
+
+  def registerPositionSaver(): Unit =
+    import org.scalajs.dom.window
+    window.addEventListener("beforeunload", (_: org.scalajs.dom.Event) => savePosition())
