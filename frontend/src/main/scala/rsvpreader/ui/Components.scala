@@ -205,23 +205,31 @@ object Components:
 
   def keyboardHandler(using AllowUnsafe): Modifier[HtmlElement] =
     onKeyDown --> { event =>
-      // Don't handle if capturing key, settings modal, or text input modal is open
-      if AppState.capturingKeyFor.now().isEmpty && !AppState.showSettingsModal.now() && !AppState.showTextInputModal.now() then
-        val bindings = AppState.currentKeyBindings.now()
-        bindings.actionFor(event.key).foreach { action =>
-          action match
-            case KeyAction.PlayPause =>
-              event.preventDefault()
-              AppState.togglePlayPause()
-            case KeyAction.RestartSentence =>
-              AppState.sendCommand(Command.RestartSentence)
-            case KeyAction.RestartParagraph =>
-              AppState.sendCommand(Command.RestartParagraph)
-            case KeyAction.SpeedUp =>
-              AppState.adjustSpeed(50)
-            case KeyAction.SpeedDown =>
-              AppState.adjustSpeed(-50)
-        }
+      AppState.capturingKeyFor.now() match
+        case Some(action) =>
+          // Capture the key for remapping
+          event.preventDefault()
+          val updated = AppState.currentKeyBindings.now().withBinding(action, event.key)
+          AppState.currentKeyBindings.set(updated)
+          AppState.capturingKeyFor.set(None)
+          AppState.saveSettings()
+        case None =>
+          if !AppState.showSettingsModal.now() && !AppState.showTextInputModal.now() then
+            val bindings = AppState.currentKeyBindings.now()
+            bindings.actionFor(event.key).foreach { action =>
+              action match
+                case KeyAction.PlayPause =>
+                  event.preventDefault()
+                  AppState.togglePlayPause()
+                case KeyAction.RestartSentence =>
+                  AppState.sendCommand(Command.RestartSentence)
+                case KeyAction.RestartParagraph =>
+                  AppState.sendCommand(Command.RestartParagraph)
+                case KeyAction.SpeedUp =>
+                  AppState.adjustSpeed(50)
+                case KeyAction.SpeedDown =>
+                  AppState.adjustSpeed(-50)
+            }
     }
 
   def keyboardHints: HtmlElement = div(

@@ -39,18 +39,7 @@ object Settings:
           }
         )
       )
-    ),
-    // Global key capture when capturing
-    onKeyDown --> { event =>
-      AppState.capturingKeyFor.now().foreach { action =>
-        event.preventDefault()
-        val key = event.key
-        val updated = AppState.currentKeyBindings.now().withBinding(action, key)
-        AppState.currentKeyBindings.set(updated)
-        AppState.capturingKeyFor.set(None)
-        AppState.saveSettings()
-      }
-    }
+    )
   )
 
   private def centerModeSection: HtmlElement = div(
@@ -112,19 +101,20 @@ object Settings:
   private def keybindingRow(action: KeyAction)(using AllowUnsafe): HtmlElement = div(
     cls := "keybinding-row",
     span(cls := "action-name", actionLabel(action)),
-    child <-- AppState.capturingKeyFor.signal.combineWith(AppState.currentKeyBindings.signal).map {
-      case (Some(a), _) if a == action =>
-        span(cls := "key-capture capturing", "Press a key...")
-      case (_, bindings) =>
-        button(
-          cls := "key-capture",
+    button(
+      cls <-- AppState.capturingKeyFor.signal.map {
+        case Some(a) if a == action => "key-capture capturing"
+        case _                      => "key-capture"
+      },
+      child.text <-- AppState.capturingKeyFor.signal.combineWith(AppState.currentKeyBindings.signal).map {
+        case (Some(a), _) if a == action => "Press a key..."
+        case (_, bindings) =>
           bindings.keyFor(action) match
             case " " => "Space"
             case k   => k
-          ,
-          onClick --> (_ => AppState.capturingKeyFor.set(Some(action)))
-        )
-    }
+      },
+      onClick --> (_ => AppState.capturingKeyFor.set(Some(action)))
+    )
   )
 
   private def actionLabel(action: KeyAction): String = action match
