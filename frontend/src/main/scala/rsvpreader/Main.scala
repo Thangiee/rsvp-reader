@@ -84,36 +84,43 @@ object Main extends KyoApp:
     // Wrap in Abort.run to handle channel closure (e.g., if app shuts down)
     Abort.run[Closed] {
       Loop(()): _ =>
-        // Read mutable field outside direct block (Kyo disallows mutable access inside direct)
-        val startIndex = AppState.savedPosition.map(_._2).getOrElse(0)
-        direct:
-          val tokens = tokensCh.take.now // Block until user loads text
-          Console.printLine(s"Received ${tokens.length} tokens, starting playback").now
+        // Take tokens first (blocks until user loads text), then read mutable savedPosition.
+        // savedPosition must be read AFTER take returns so that togglePlayPause()'s
+        // clearing of savedPosition (on restart after finish) is visible.
+        // Can't read mutable fields inside direct blocks (Kyo restriction), so we
+        // use flatMap to sequence: take tokens → read mutable → continue in direct.
+        tokensCh.take.map { tokens =>
+          val startIndex = AppState.savedPosition.map(_._2).getOrElse(0)
+          (tokens, startIndex)
+        }.map { (tokens, startIndex) =>
+          direct:
+            Console.printLine(s"Received ${tokens.length} tokens, starting playback").now
 
-          // Create state channel for this playback session
-          // Using initUnscoped since we're inside a loop and need to manage lifetime manually
-          val stateCh = Channel.initUnscoped[ViewState](1).now
-          val engine = PlaybackEngine(commandCh, stateCh, configRef)
+            // Create state channel for this playback session
+            // Using initUnscoped since we're inside a loop and need to manage lifetime manually
+            val stateCh = Channel.initUnscoped[ViewState](1).now
+            val engine = PlaybackEngine(commandCh, stateCh, configRef)
 
-          // Start consumer in background — it takes states and updates the UI.
-          // Handles its own Abort[Closed] so it exits cleanly when channel is closed.
-          val consumerFiber = Fiber.init(
-            Abort.run[Closed](stateConsumerLoop(stateCh))
-          ).now
+            // Start consumer in background — it takes states and updates the UI.
+            // Handles its own Abort[Closed] so it exits cleanly when channel is closed.
+            val consumerFiber = Fiber.init(
+              Abort.run[Closed](stateConsumerLoop(stateCh))
+            ).now
 
-          // Run engine — blocks until playback finishes (resume from saved position if any)
-          engine.run(tokens, startIndex).now
+            // Run engine — blocks until playback finishes (resume from saved position if any)
+            engine.run(tokens, startIndex).now
 
-          // Close state channel: returns any buffered states the consumer hasn't taken,
-          // and causes the consumer's next take to abort with Closed.
-          // This avoids the race condition where Async.race could interrupt the consumer
-          // after it dequeued a state but before the continuation (UI update) ran.
-          val remaining = stateCh.close.now
-          remaining.foreach(_.foreach(s => AppState.viewState.set(s)))
-          AppState.savePosition()
+            // Close state channel: returns any buffered states the consumer hasn't taken,
+            // and causes the consumer's next take to abort with Closed.
+            // This avoids the race condition where Async.race could interrupt the consumer
+            // after it dequeued a state but before the continuation (UI update) ran.
+            val remaining = stateCh.close.now
+            remaining.foreach(_.foreach(s => AppState.viewState.set(s)))
+            AppState.savePosition()
 
-          Console.printLine("Playback finished, waiting for next text...").now
-          Loop.continue(()).now // Loop back to wait for next text
+            Console.printLine("Playback finished, waiting for next text...").now
+            Loop.continue(()).now // Loop back to wait for next text
+        }
     }.unit
 
   /** Consumes state updates from PlaybackEngine and updates Laminar reactive state.
@@ -141,13 +148,17 @@ object Main extends KyoApp:
     * The engineLoop (running in Kyo's runtime) will receive and process them.
     */
   private def onTextLoaded(text: String): Unit =
-    val tokens = Tokenizer.tokenize(text)
-    val textHash = text.hashCode
-    val startIndex = AppState.savedPosition match
-      case Some((hash, idx)) if hash == textHash => idx
-      case _ => 0
-    AppState.savedPosition = Some((textHash, startIndex))
-    println(s"Loaded ${tokens.length} tokens (resuming at $startIndex), sending to engine")
-    // unsafe.offer is non-blocking - returns false if channel is full
-    AppState.unsafeGetTokensChannel.unsafe.offer(tokens)
-    ()
+    AppState.loadError.set(None)
+    try
+      val tokens = Tokenizer.tokenize(text)
+      val textHash = text.hashCode
+      val startIndex = AppState.savedPosition match
+        case Some((hash, idx)) if hash == textHash => idx
+        case _ => 0
+      AppState.savedPosition = Some((textHash, startIndex))
+      println(s"Loaded ${tokens.length} tokens (resuming at $startIndex), sending to engine")
+      AppState.unsafeGetTokensChannel.unsafe.offer(tokens)
+      ()
+    catch
+      case ex: Exception =>
+        AppState.loadError.set(Some(s"Failed to process text: ${ex.getMessage}"))

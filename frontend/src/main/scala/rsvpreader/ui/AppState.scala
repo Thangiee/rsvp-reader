@@ -93,6 +93,9 @@ object AppState:
     viewState.now().status match
       case PlayStatus.Playing  => sendCommand(Command.Pause)
       case PlayStatus.Finished =>
+        // Clear saved position so engine restarts from beginning
+        savedPosition = None
+        org.scalajs.dom.window.localStorage.removeItem("rsvp-position")
         // Re-send current tokens to start a fresh playback session
         val tokens = viewState.now().tokens
         _tokensChannel.foreach(_.unsafe.offer(tokens))
