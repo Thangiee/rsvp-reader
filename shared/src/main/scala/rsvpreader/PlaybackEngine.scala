@@ -86,7 +86,17 @@ class PlaybackEngine(
                 if shouldPause then Loop.continue(next.copy(status = PlayStatus.Paused))
                 else Loop.continue(next)
               case Present(cmd) =>
-                Loop.continue(applyCommand(cmd, state))
+                val newState = applyCommand(cmd, state)
+                cmd match
+                  case Command.RestartSentence | Command.RestartParagraph =>
+                    emit(newState).andThen {
+                      configRef.get.map { config =>
+                        if config.startDelay > Duration.Zero then
+                          Async.sleep(config.startDelay).andThen(Loop.continue(newState))
+                        else Loop.continue(newState)
+                      }
+                    }
+                  case _ => Loop.continue(newState)
             }
           }
         }
