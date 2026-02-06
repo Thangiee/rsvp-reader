@@ -35,9 +35,9 @@ class PlaybackEngine(
   private def emit(state: ViewState): Unit < PlaybackEffect =
     stateOut.put(state)
 
-  def run(tokens: Span[Token]): Unit < PlaybackEffect =
+  def run(tokens: Span[Token], startIndex: Int = 0): Unit < PlaybackEffect =
     configRef.get.map { config =>
-      val initial = ViewState.initial(tokens, config)
+      val initial = ViewState.initial(tokens, config, startIndex)
       emit(initial).andThen {
         if config.startDelay > Duration.Zero then
           Async.sleep(config.startDelay).andThen(playbackLoop(initial))
