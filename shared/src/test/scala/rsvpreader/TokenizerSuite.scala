@@ -67,6 +67,35 @@ class TokenizerSuite extends FunSuite:
     val tokens = Tokenizer.tokenize("hello    world")
     assertEquals(tokens.length, 2)
 
+  test("tokenize strips citation brackets and detects sentence boundary"):
+    val tokens = Tokenizer.tokenize("feedback.[4] Claude,")
+    assertEquals(tokens(0).text, "feedback")
+    assertEquals(tokens(0).punctuation, Punctuation.Period("."))
+    assertEquals(tokens(0).sentenceIndex, 0)
+    assertEquals(tokens(1).text, "Claude")
+    assertEquals(tokens(1).punctuation, Punctuation.Comma(","))
+    assertEquals(tokens(1).sentenceIndex, 1)
+
+  test("tokenize strips multiple citation brackets"):
+    val tokens = Tokenizer.tokenize("rights.[5][4]")
+    assertEquals(tokens(0).text, "rights")
+    assertEquals(tokens(0).punctuation, Punctuation.Period("."))
+
+  test("tokenize strips citation without punctuation"):
+    val tokens = Tokenizer.tokenize("model[4] next")
+    assertEquals(tokens(0).text, "model")
+    assertEquals(tokens(0).punctuation, Punctuation.None)
+
+  test("tokenize strips trailing close-wrappers"):
+    val tokens = Tokenizer.tokenize("world.\")")
+    assertEquals(tokens(0).text, "world")
+    assertEquals(tokens(0).punctuation, Punctuation.Period("."))
+
+  test("tokenize focus index uses cleaned word length"):
+    val tokens = Tokenizer.tokenize("feedback.[4]")
+    // "feedback" is 8 chars => focusIndex 3
+    assertEquals(tokens(0).focusIndex, 3)
+
   test("tokenize handles multiple newlines as single paragraph break"):
     val tokens = Tokenizer.tokenize("one\n\n\n\ntwo")
     assertEquals(tokens.length, 2)

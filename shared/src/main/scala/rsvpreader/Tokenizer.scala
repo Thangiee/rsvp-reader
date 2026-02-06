@@ -17,7 +17,8 @@ object Tokenizer:
     val tokens = paragraphs.flatMap { paragraph =>
       val words = paragraph.split("\\s+").filter(_.nonEmpty)
       val result = words.map { raw =>
-        val (word, punct) = extractPunctuation(raw)
+        val cleaned = stripTrailingSuffixes(raw)
+        val (word, punct) = extractPunctuation(cleaned)
         val token = Token(
           text = word,
           focusIndex = calculateFocusIndex(word),
@@ -33,6 +34,11 @@ object Tokenizer:
       result
     }
     Span.from(tokens)
+
+  private def stripTrailingSuffixes(word: String): String =
+    word
+      .replaceAll("(\\[\\d+\\])+$", "")
+      .replaceAll("[)\"'\\u201d\\u2019]+$", "")
 
   private def extractPunctuation(word: String): (String, Punctuation) =
     word.lastOption match
