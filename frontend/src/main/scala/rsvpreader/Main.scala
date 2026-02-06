@@ -33,6 +33,9 @@ import rsvpreader.ui.*
 object Main extends KyoApp:
   import AllowUnsafe.embrace.danger
 
+  // Load settings early so savedWpm is available for RsvpConfig initialization
+  AppState.loadSettings()
+
   renderOnDomContentLoaded(dom.document.getElementById("app"), Layout.app(onTextLoaded))
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -40,13 +43,15 @@ object Main extends KyoApp:
   // All async Kyo effects must run inside this `run` block.
   // Effects triggered from DOM callbacks won't execute properly.
   // ─────────────────────────────────────────────────────────────────────────────
+  private val initialWpm = AppState.savedWpm.getOrElse(300)
+
   run {
     direct {
       // Initialize config ref and channels (unscoped to prevent closure when run block's scope ends)
       // - configRef: shared RSVP config, readable mid-playback for dynamic settings
       // - commandCh: UI sends commands (pause/resume/back) to PlaybackEngine
       // - tokensCh: UI sends tokenized text to engineLoop
-      val configRef = AtomicRef.init(RsvpConfig(wordLengthFactor = .3)).now
+      val configRef = AtomicRef.init(RsvpConfig(baseWpm = initialWpm, wordLengthFactor = .3)).now
       val commandCh = Channel.initUnscoped[Command](1).now
       val tokensCh = Channel.initUnscoped[kyo.Span[Token]](1).now
       AppState.setConfigRef(configRef)

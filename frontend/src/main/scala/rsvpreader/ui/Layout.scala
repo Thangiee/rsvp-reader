@@ -45,6 +45,5 @@ object Layout:
     tabIndex := 0,
     onMountCallback { ctx =>
       ctx.thisNode.ref.asInstanceOf[dom.html.Element].focus()
-      AppState.loadSettings()
     }
   )

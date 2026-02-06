@@ -101,6 +101,8 @@ object AppState:
     val current = viewState.now().wpm
     val clamped = Math.max(100, Math.min(1000, current + delta))
     sendCommand(Command.SetSpeed(clamped))
+    import org.scalajs.dom.window.localStorage
+    localStorage.setItem("rsvp-wpm", clamped.toString)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Derived Signals
@@ -150,6 +152,9 @@ object AppState:
   // Settings Persistence
   // ─────────────────────────────────────────────────────────────────────────
 
+  /** WPM loaded from localStorage (if any), used by Main to initialize RsvpConfig. */
+  var savedWpm: Option[Int] = None
+
   def loadSettings(): Unit =
     import org.scalajs.dom.window.localStorage
     Option(localStorage.getItem("rsvp-centerMode"))
@@ -165,6 +170,18 @@ object AppState:
       .flatMap(s => scala.util.Try(s.toInt).toOption)
       .filter(n => n >= 1 && n <= 4)
       .foreach(n => contextSentences.set(n))
+    // Load saved WPM
+    Option(localStorage.getItem("rsvp-wpm"))
+      .flatMap(s => scala.util.Try(s.toInt).toOption)
+      .filter(w => w >= 100 && w <= 1000)
+      .foreach { w =>
+        savedWpm = Some(w)
+        viewState.update(_.copy(wpm = w))
+      }
+    // Load saved input text
+    Option(localStorage.getItem("rsvp-inputText"))
+      .filter(_.trim.nonEmpty)
+      .foreach(t => inputText.set(t))
 
   def saveSettings(): Unit =
     import org.scalajs.dom.window.localStorage
@@ -175,3 +192,5 @@ object AppState:
       localStorage.setItem(s"rsvp-key-${action.toString}", bindings.keyFor(action))
     }
     localStorage.setItem("rsvp-contextSentences", contextSentences.now().toString)
+    localStorage.setItem("rsvp-wpm", viewState.now().wpm.toString)
+    localStorage.setItem("rsvp-inputText", inputText.now())

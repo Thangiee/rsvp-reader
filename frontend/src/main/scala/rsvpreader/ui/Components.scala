@@ -264,6 +264,7 @@ object Components:
           if text.trim.nonEmpty then
             onStart(text)
             AppState.showTextInputModal.set(false)
+            AppState.saveSettings()
         }
       )
     )
