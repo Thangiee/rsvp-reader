@@ -91,7 +91,7 @@ object Components:
           cls := (if isCurrent then "pause-word current" else "pause-word"),
           // Use data attribute to find the current word for scrolling
           (if isCurrent then Some(dataAttr("current") := "true") else None).toSeq,
-          token.text,
+          s"${token.text}${token.punctuation.text}",
           " "
         )
 
@@ -129,7 +129,7 @@ object Components:
             val isCurrent = i == s.index
             span(
               cls := (if isCurrent then "sentence-word current" else "sentence-word"),
-              token.text,
+              s"${token.text}${token.punctuation.text}",
               " "
             )
           }
@@ -163,7 +163,7 @@ object Components:
             val isCurrent = i == s.index
             span(
               cls := (if isCurrent then "current-word" else ""),
-              token.text,
+              s"${token.text}${token.punctuation.text}",
               " "
             )
           }
@@ -222,8 +222,8 @@ object Components:
 
   def keyboardHandler(using AllowUnsafe): Modifier[HtmlElement] =
     onKeyDown --> { event =>
-      // Don't handle if capturing key or settings modal is open
-      if AppState.capturingKeyFor.now().isEmpty && !AppState.showSettingsModal.now() then
+      // Don't handle if capturing key, settings modal, or text input modal is open
+      if AppState.capturingKeyFor.now().isEmpty && !AppState.showSettingsModal.now() && !AppState.showTextInputModal.now() then
         val bindings = AppState.currentKeyBindings.now()
         bindings.actionFor(event.key).foreach { action =>
           action match

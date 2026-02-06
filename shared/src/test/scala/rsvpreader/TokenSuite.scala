@@ -20,7 +20,7 @@ class TokenSuite extends FunSuite:
     assertEquals(token.paragraphIndex, 0)
 
   test("isEndOfParagraph returns true when next token has different paragraph"):
-    val current = Token("hello", 1, Punctuation.Period, 0, 0)
+    val current = Token("hello", 1, Punctuation.Period("."), 0, 0)
     val next = Token("world", 1, Punctuation.None, 1, 1)
     assert(current.isEndOfParagraph(Maybe(next)), "should be end of paragraph")
 

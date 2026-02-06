@@ -25,7 +25,7 @@ object Tokenizer:
           sentenceIndex = sentenceIdx,
           paragraphIndex = paragraphIdx
         )
-        if punct == Punctuation.Period then sentenceIdx += 1
+        if punct.isInstanceOf[Punctuation.Period] then sentenceIdx += 1
         token
       }
       paragraphIdx += 1
@@ -36,8 +36,8 @@ object Tokenizer:
 
   private def extractPunctuation(word: String): (String, Punctuation) =
     word.lastOption match
-      case Some(c) if ".!?".contains(c) => (word.init, Punctuation.Period)
-      case Some(c) if ",;:".contains(c) => (word.init, Punctuation.Comma)
+      case Some(c) if ".!?".contains(c) => (word.init, Punctuation.Period(c.toString))
+      case Some(c) if ",;:".contains(c) => (word.init, Punctuation.Comma(c.toString))
       case _ => (word, Punctuation.None)
 
   private def calculateFocusIndex(word: String): Int = {

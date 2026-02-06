@@ -24,12 +24,12 @@ class DelaySuite extends FunSuite:
     assertEquals(delay, baseDelay)
 
   test("calculateDelay adds comma delay"):
-    val token = Token("hello", 1, Punctuation.Comma, 0, 0)
+    val token = Token("hello", 1, Punctuation.Comma(","), 0, 0)
     val delay = calculateDelay(token, baseConfig)
     assertEquals(delay, baseDelay + 150.millis)
 
   test("calculateDelay adds period delay"):
-    val token = Token("hello", 1, Punctuation.Period, 0, 0)
+    val token = Token("hello", 1, Punctuation.Period("."), 0, 0)
     val delay = calculateDelay(token, baseConfig)
     assertEquals(delay, baseDelay + 300.millis)
 
@@ -62,6 +62,6 @@ class DelaySuite extends FunSuite:
   test("calculateDelay combines all factors"):
     // Long word with punctuation
     // Base: 200ms, comma: 150ms, length bonus for 7-char word: 200 * 2 * 0.1 = 40ms
-    val token = Token("example", 2, Punctuation.Comma, 0, 0)
+    val token = Token("example", 2, Punctuation.Comma(","), 0, 0)
     val delay = calculateDelay(token, baseConfig)
     assertEquals(delay, 200.millis + 40.millis + 150.millis)

@@ -18,8 +18,8 @@ def calculateDelay(token: Token, config: RsvpConfig): Duration =
     else Duration.Zero
 
   val punctPause = token.punctuation match
-    case Punctuation.Period    => config.periodDelay
-    case Punctuation.Comma     => config.commaDelay
+    case _: Punctuation.Period => config.periodDelay
+    case _: Punctuation.Comma  => config.commaDelay
     case Punctuation.Paragraph => config.periodDelay + config.paragraphDelay
     case Punctuation.None      => Duration.Zero
 

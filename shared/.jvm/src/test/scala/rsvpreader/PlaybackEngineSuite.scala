@@ -26,7 +26,7 @@ class PlaybackEngineSuite extends FunSuite:
   val tokens: Span[Token] = Span.from(Seq(
     Token("one", 0, Punctuation.None, 0, 0),
     Token("two", 0, Punctuation.None, 0, 0),
-    Token("three", 1, Punctuation.Period, 0, 0)
+    Token("three", 1, Punctuation.Period("."), 0, 0)
   ))
 
   val moreTokens: Span[Token] = Span.from(Seq(
@@ -34,7 +34,7 @@ class PlaybackEngineSuite extends FunSuite:
     Token("b", 0, Punctuation.None, 0, 0),
     Token("c", 0, Punctuation.None, 0, 0),
     Token("d", 0, Punctuation.None, 0, 0),
-    Token("e", 1, Punctuation.Period, 0, 0)
+    Token("e", 1, Punctuation.Period("."), 0, 0)
   ))
 
   /** Test harness that manages channels, engine lifecycle, and state collection. */
@@ -369,7 +369,7 @@ class PlaybackEngineSuite extends FunSuite:
     Token("hello", 1, Punctuation.None, 0, 0),
     Token("world.", 1, Punctuation.Paragraph, 0, 0),
     Token("new", 0, Punctuation.None, 1, 1),
-    Token("para.", 1, Punctuation.Period, 1, 1)
+    Token("para.", 1, Punctuation.Period("."), 1, 1)
   ))
 
   test("WPM-based delay prevents instant completion"):
@@ -472,7 +472,7 @@ class PlaybackEngineSuite extends FunSuite:
             wordLengthEnabled = false
           )
           val periodToken = Span.from(Seq(
-            Token("end.", 1, Punctuation.Period, 0, 0),
+            Token("end.", 1, Punctuation.Period("."), 0, 0),
             Token("next", 1, Punctuation.None, 1, 0)
           ))
           val h     = Harness.init(slowPeriodConfig).now

@@ -135,7 +135,10 @@ object AppState:
     }
 
   val wordProgress: LaminarSignal[String] =
-    viewState.signal.map(s => s"${s.index + 1} / ${s.tokens.length}")
+    viewState.signal.map { s =>
+      val display = Math.min(s.index + 1, s.tokens.length)
+      s"$display / ${s.tokens.length}"
+    }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Settings Persistence

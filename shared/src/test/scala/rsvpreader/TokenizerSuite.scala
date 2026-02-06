@@ -14,23 +14,23 @@ class TokenizerSuite extends FunSuite:
   test("tokenize extracts period punctuation"):
     val tokens = Tokenizer.tokenize("hello.")
     assertEquals(tokens(0).text, "hello")
-    assertEquals(tokens(0).punctuation, Punctuation.Period)
+    assertEquals(tokens(0).punctuation, Punctuation.Period("."))
 
   test("tokenize extracts comma punctuation"):
     val tokens = Tokenizer.tokenize("hello, world")
     assertEquals(tokens(0).text, "hello")
-    assertEquals(tokens(0).punctuation, Punctuation.Comma)
+    assertEquals(tokens(0).punctuation, Punctuation.Comma(","))
     assertEquals(tokens(1).punctuation, Punctuation.None)
 
   test("tokenize extracts exclamation and question marks as Period"):
     val tokens = Tokenizer.tokenize("what? wow!")
-    assertEquals(tokens(0).punctuation, Punctuation.Period)
-    assertEquals(tokens(1).punctuation, Punctuation.Period)
+    assertEquals(tokens(0).punctuation, Punctuation.Period("?"))
+    assertEquals(tokens(1).punctuation, Punctuation.Period("!"))
 
   test("tokenize extracts semicolon and colon as Comma"):
     val tokens = Tokenizer.tokenize("first; second: third")
-    assertEquals(tokens(0).punctuation, Punctuation.Comma)
-    assertEquals(tokens(1).punctuation, Punctuation.Comma)
+    assertEquals(tokens(0).punctuation, Punctuation.Comma(";"))
+    assertEquals(tokens(1).punctuation, Punctuation.Comma(":"))
     assertEquals(tokens(2).punctuation, Punctuation.None)
 
   test("tokenize calculates ORP focus index via lookup table"):
