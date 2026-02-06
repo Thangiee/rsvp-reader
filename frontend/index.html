@@ -196,14 +196,12 @@
       .sentence-context {
         color: var(--text-secondary);
         font-size: 1.1rem;
-        text-align: center;
-        max-width: 90vw;
+        text-align: left;
+        max-width: 650px;
+        width: 100%;
         line-height: 1.6;
         padding: 0 1rem;
         min-height: 2rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
       }
 
       .sentence-word {
@@ -216,6 +214,10 @@
         text-decoration: underline;
         text-decoration-color: var(--orp-color);
         text-underline-offset: 3px;
+      }
+
+      .sentence-word.dim {
+        opacity: 0.45;
       }
 
       /* Pause text view — scrollable full text with highlighted current word */
@@ -771,6 +773,43 @@
         font-size: 0.8rem;
         color: var(--text-muted);
         margin-bottom: 1rem;
+      }
+
+      .segmented-control {
+        display: flex;
+        gap: 0;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        width: fit-content;
+      }
+
+      .segment-btn {
+        background: transparent;
+        border: none;
+        border-right: 1px solid var(--border);
+        color: var(--text-secondary);
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.85rem;
+        padding: 0.5rem 1.1rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      .segment-btn:last-child {
+        border-right: none;
+      }
+
+      .segment-btn:hover {
+        background: var(--control-hover);
+        color: var(--text-primary);
+      }
+
+      .segment-btn.active {
+        background: var(--accent);
+        color: var(--bg-primary);
+        font-weight: 500;
       }
 
       .radio-group {

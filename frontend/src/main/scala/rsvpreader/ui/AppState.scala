@@ -26,6 +26,7 @@ object AppState:
   val currentKeyBindings: LaminarVar[KeyBindings] = LaminarVar(KeyBindings.default)
   val currentCenterMode: LaminarVar[CenterMode] = LaminarVar(CenterMode.ORP)
   val capturingKeyFor: LaminarVar[Option[KeyAction]] = LaminarVar(None)
+  val contextSentences: LaminarVar[Int] = LaminarVar(1)
 
   // Config and channel references - set by Main during initialization
   private var _configRef: Result[String, AtomicRef[RsvpConfig]] = Result.fail("Config ref not initialized")
@@ -160,6 +161,10 @@ object AppState:
           currentKeyBindings.update(_.withBinding(action, key))
         }
     }
+    Option(localStorage.getItem("rsvp-contextSentences"))
+      .flatMap(s => scala.util.Try(s.toInt).toOption)
+      .filter(n => n >= 1 && n <= 4)
+      .foreach(n => contextSentences.set(n))
 
   def saveSettings(): Unit =
     import org.scalajs.dom.window.localStorage
@@ -169,3 +174,4 @@ object AppState:
     KeyAction.values.foreach { action =>
       localStorage.setItem(s"rsvp-key-${action.toString}", bindings.keyFor(action))
     }
+    localStorage.setItem("rsvp-contextSentences", contextSentences.now().toString)

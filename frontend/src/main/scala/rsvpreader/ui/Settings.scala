@@ -24,6 +24,7 @@ object Settings:
         )
       ),
       centerModeSection,
+      contextSentencesSection,
       keybindingsSection,
       div(
         cls := "settings-footer",
@@ -33,6 +34,7 @@ object Settings:
           onClick --> { _ =>
             AppState.currentCenterMode.set(CenterMode.ORP)
             AppState.currentKeyBindings.set(KeyBindings.default)
+            AppState.contextSentences.set(1)
             AppState.saveSettings()
           }
         )
@@ -75,6 +77,27 @@ object Settings:
       }
     ),
     span(labelText)
+  )
+
+  private def contextSentencesSection: HtmlElement = div(
+    cls := "settings-section",
+    h3("Context Sentences"),
+    p(cls := "settings-desc", "Number of sentences shown during playback"),
+    div(
+      cls := "segmented-control",
+      (1 to 4).map { n =>
+        button(
+          cls <-- AppState.contextSentences.signal.map { current =>
+            if current == n then "segment-btn active" else "segment-btn"
+          },
+          n.toString,
+          onClick --> { _ =>
+            AppState.contextSentences.set(n)
+            AppState.saveSettings()
+          }
+        )
+      }
+    )
   )
 
   private def keybindingsSection(using AllowUnsafe): HtmlElement = div(
