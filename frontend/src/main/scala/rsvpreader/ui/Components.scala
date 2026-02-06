@@ -269,8 +269,16 @@ object Components:
         controlled(
           value <-- AppState.inputText.signal,
           onInput.mapToValue --> AppState.inputText.writer
-        )
+        ),
+        onInput --> (_ => AppState.loadError.set(None))
       ),
+      child.maybe <-- AppState.loadError.signal.map {
+        case Some(msg) => Some(div(
+          cls := "load-error",
+          msg
+        ))
+        case None => None
+      },
       button(
         cls := "start-reading-btn",
         "Start Reading",
@@ -278,8 +286,9 @@ object Components:
           val text = AppState.inputText.now()
           if text.trim.nonEmpty then
             onStart(text)
-            AppState.showTextInputModal.set(false)
-            AppState.saveSettings()
+            if AppState.loadError.now().isEmpty then
+              AppState.showTextInputModal.set(false)
+              AppState.saveSettings()
         }
       )
     )

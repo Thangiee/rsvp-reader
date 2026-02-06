@@ -20,6 +20,7 @@ object AppState:
   val showTextInputModal: LaminarVar[Boolean] = LaminarVar(true) // Show on start
   val showSettingsModal: LaminarVar[Boolean] = LaminarVar(false)
   val inputText: LaminarVar[String] = LaminarVar("")
+  val loadError: LaminarVar[Option[String]] = LaminarVar(None)
 
   // Settings state
   val currentKeyBindings: LaminarVar[KeyBindings] = LaminarVar(KeyBindings.default)
