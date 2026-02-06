@@ -33,16 +33,3 @@ class TokenSuite extends FunSuite:
     val current = Token("hello", 1, Punctuation.None, 0, 0)
     assert(current.isEndOfParagraph(Absent), "should be end of paragraph when no next")
 
-  test("isEndOfSentence returns true when next token has different sentence"):
-    val current = Token("hello", 1, Punctuation.Period, 0, 0)
-    val next = Token("world", 1, Punctuation.None, 1, 0)
-    assert(current.isEndOfSentence(Maybe(next)), "should be end of sentence")
-
-  test("isEndOfSentence returns false when next token has same sentence"):
-    val current = Token("hello", 1, Punctuation.None, 0, 0)
-    val next = Token("world", 1, Punctuation.None, 0, 0)
-    assert(!current.isEndOfSentence(Maybe(next)), "should not be end of sentence")
-
-  test("isEndOfSentence returns true when next is Absent"):
-    val current = Token("hello", 1, Punctuation.None, 0, 0)
-    assert(current.isEndOfSentence(Absent), "should be end of sentence when no next")

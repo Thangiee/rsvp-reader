@@ -96,6 +96,16 @@ class PlaybackEngine(
       commands.take.map { cmd =>
         val newState = applyCommand(cmd, state)
         if newState.status == PlayStatus.Stopped then done
+        else if cmd == Command.Resume then
+          // Emit playing state so UI transitions, then delay before advancing words
+          emit(newState).andThen {
+            configRef.get.map { config =>
+              if config.startDelay > Duration.Zero then
+                Async.sleep(config.startDelay).andThen(Loop.continue(newState))
+              else
+                Loop.continue(newState)
+            }
+          }
         else Loop.continue(newState)
       }
     }

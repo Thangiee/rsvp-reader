@@ -164,8 +164,8 @@ All created with `Channel.initUnscoped` to avoid being closed when `KyoApp.run`'
 - `focusContainerCls`, `statusDotCls`, `statusText` — CSS class bindings
 
 **Components** are pure Laminar elements that bind to signals. The focus word display switches between:
-- **Playing:** Single word with ORP highlighting (before/focus/after spans)
-- **Paused:** Expanded sentence view with current word highlighted
+- **Playing:** Single word with ORP highlighting (before/focus/after spans) + sentence context below
+- **Paused:** Scrollable full-text view with current word highlighted, sentence context hidden
 
 **Keyboard handling:** `Components.keyboardHandler` maps key presses to actions via configurable `KeyBindings`. Guards against capturing when settings modal is open.
 

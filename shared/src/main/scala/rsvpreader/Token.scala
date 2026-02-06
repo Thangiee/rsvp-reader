@@ -19,6 +19,3 @@ case class Token(
 ):
   def isEndOfParagraph(next: Maybe[Token]): Boolean =
     next.fold(true)(_.paragraphIndex != this.paragraphIndex)
-
-  def isEndOfSentence(next: Maybe[Token]): Boolean =
-    next.fold(true)(_.sentenceIndex != this.sentenceIndex)

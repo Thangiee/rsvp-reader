@@ -32,31 +32,3 @@ class ViewStateSuite extends FunSuite:
     val state = ViewState(tokens, -1, PlayStatus.Playing, 300)
     assertEquals(state.currentToken, Absent)
 
-  test("trailTokens returns previous tokens"):
-    val state = ViewState(tokens, 3, PlayStatus.Playing, 300)
-    val trail = state.trailTokens(2)
-    assertEquals(trail.length, 2)
-    assertEquals(trail(0).text, "world")
-    assertEquals(trail(1).text, "New")
-
-  test("trailTokens returns empty for index 0"):
-    val state = ViewState(tokens, 0, PlayStatus.Playing, 300)
-    assertEquals(state.trailTokens(5), Seq.empty)
-
-  test("trailTokens returns empty for count <= 0"):
-    val state = ViewState(tokens, 2, PlayStatus.Playing, 300)
-    assertEquals(state.trailTokens(0), Seq.empty)
-    assertEquals(state.trailTokens(-1), Seq.empty)
-
-  test("currentSentenceTokens returns tokens in same sentence"):
-    val state = ViewState(tokens, 0, PlayStatus.Playing, 300)
-    val sentence = state.currentSentenceTokens
-    assertEquals(sentence.length, 2)
-    assertEquals(sentence.map(_.text), Seq("Hello", "world"))
-
-  test("currentSentenceWithHighlight marks current token"):
-    val state = ViewState(tokens, 1, PlayStatus.Playing, 300)
-    val highlighted = state.currentSentenceWithHighlight
-    assertEquals(highlighted.length, 2)
-    assertEquals(highlighted(0), (tokens(0), false))
-    assertEquals(highlighted(1), (tokens(1), true))

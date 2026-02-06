@@ -233,37 +233,95 @@
         text-underline-offset: 3px;
       }
 
-      /* Expanded pause view */
+      /* Pause text view — scrollable full text with highlighted current word */
       .focus-container.expanded {
-        padding: 2rem;
+        padding: 1rem 2rem;
       }
 
       .focus-container.expanded .focus-area {
-        font-size: 1.3rem;
+        font-size: 1rem;
         line-height: 1.8;
+        min-height: auto;
+        align-items: flex-start;
       }
 
-      .expanded-sentence {
-        max-width: 600px;
-        text-align: center;
+      .focus-container.expanded .orp-guides {
+        display: none;
       }
 
-      .expanded-word {
-        color: var(--text-primary);
-        transition: all 0.2s ease;
+      .focus-container.expanded::before {
+        opacity: 0 !important;
       }
 
-      .expanded-word.current {
+      .pause-text-view {
+        max-height: 50vh;
+        overflow-y: auto;
+        max-width: 650px;
+        width: 100%;
+        font-family: 'Crimson Pro', Georgia, serif;
+        font-size: 1.15rem;
+        line-height: 1.9;
+        color: var(--text-secondary);
+        text-align: left;
+        padding: 1.5rem;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        opacity: 1;
+        transition: opacity 0.2s ease;
+        /* Subtle inset shadow for depth */
+        box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3);
+      }
+
+      /* Custom scrollbar for the text view */
+      .pause-text-view::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .pause-text-view::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      .pause-text-view::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 3px;
+      }
+
+      .pause-text-view::-webkit-scrollbar-thumb:hover {
+        background: var(--text-muted);
+      }
+
+      .pause-word {
+        transition: all 0.15s ease;
+      }
+
+      .pause-word.current {
         color: var(--orp-color);
-        font-weight: 600;
+        font-weight: 500;
         background: rgba(212, 165, 116, 0.15);
-        padding: 0.1em 0.2em;
+        padding: 0.1em 0.25em;
         border-radius: 4px;
+        box-shadow: 0 0 12px rgba(212, 165, 116, 0.1);
       }
 
-      /* Smooth transition */
+      .pause-paragraph-break {
+        display: block;
+        height: 1em;
+      }
+
+      /* Sentence context hide/show */
+      .sentence-context {
+        transition: opacity 0.2s ease;
+      }
+
+      .sentence-context.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      /* Smooth transitions for focus area mode switching */
       .focus-area {
-        transition: font-size 0.3s ease;
+        transition: font-size 0.3s ease, min-height 0.3s ease;
       }
 
       /* Progress bar */

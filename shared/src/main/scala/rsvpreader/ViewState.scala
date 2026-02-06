@@ -19,38 +19,6 @@ case class ViewState(
     if index >= 0 && index < tokens.length then Maybe(tokens(index))
     else Absent
 
-  def trailTokens(count: Int): Seq[Token] =
-    if count <= 0 || index <= 0 then Seq.empty
-    else
-      val start = Math.max(0, index - count)
-      (start until index).map(i => tokens(i))
-
-  def currentParagraphTokens: Seq[Token] =
-    currentToken.fold(Seq.empty[Token]) { current =>
-      (0 until tokens.length)
-        .map(i => tokens(i))
-        .filter(_.paragraphIndex == current.paragraphIndex)
-    }
-
-  def currentSentenceTokens: Seq[Token] =
-    currentToken.fold(Seq.empty[Token]) { current =>
-      (0 until tokens.length)
-        .map(i => tokens(i))
-        .filter(_.sentenceIndex == current.sentenceIndex)
-    }
-
-  def currentSentenceWithHighlight: Seq[(Token, Boolean)] =
-    currentToken.fold(Seq.empty[(Token, Boolean)]) { current =>
-      val sentenceIdx = current.sentenceIndex
-      (0 until tokens.length)
-        .filter(i => tokens(i).sentenceIndex == sentenceIdx)
-        .map { i =>
-          val token = tokens(i)
-          val isCurrent = i == index
-          (token, isCurrent)
-        }
-    }
-
 object ViewState:
   def initial(tokens: Span[Token], config: RsvpConfig): ViewState =
     ViewState(tokens, 0, PlayStatus.Paused, config.baseWpm)

@@ -1,6 +1,7 @@
 package rsvpreader.ui
 
 import com.raquo.laminar.api.L.*
+import org.scalajs.dom
 import kyo.*
 import rsvpreader.*
 
@@ -45,48 +46,77 @@ object Components:
       s.currentToken match
         case Absent => span(cls := "focus-placeholder", "READY TO READ")
         case Present(token) =>
-          val isPaused = s.status == PlayStatus.Paused
-
-          if isPaused then
-            // Expanded view: show full sentence with current word highlighted
-            div(
-              cls := "expanded-sentence",
-              (0 until s.tokens.length)
-                .filter(i => s.tokens(i).sentenceIndex == token.sentenceIndex)
-                .map { i =>
-                  val t = s.tokens(i)
-                  val isCurrent = i == s.index
-                  span(
-                    cls := (if isCurrent then "expanded-word current" else "expanded-word"),
-                    t.text,
-                    " "
-                  )
-                }
-            )
+          if s.status == PlayStatus.Paused then
+            pauseTextView(s)
           else
-            // Normal view: single ORP word
-            val text = token.text
-            val focus = token.focusIndex
-            val centerMode = AppState.currentCenterMode.now()
-            val offsetChars = centerMode match
-              case CenterMode.ORP   => focus
-              case CenterMode.First => 0
-              case CenterMode.None  => -1
-
-            span(
-              cls := "orp-word",
-              styleAttr := (if offsetChars >= 0 then s"--orp-offset: $offsetChars" else ""),
-              span(cls := "orp-before", text.take(focus)),
-              span(cls := "orp-focus", text.lift(focus).fold("")(_.toString)),
-              span(cls := "orp-after", text.drop(focus + 1))
-            )
+            orpWordView(token, s.index)
     }
   )
 
+  private def orpWordView(token: Token, index: Int): HtmlElement =
+    val text = token.text
+    val focus = token.focusIndex
+    val centerMode = AppState.currentCenterMode.now()
+    // Offset relative to word midpoint so the target char stays at screen center
+    val halfLen = text.length / 2.0
+    val offset = centerMode match
+      case CenterMode.ORP   => focus - halfLen
+      case CenterMode.First => -halfLen
+      case CenterMode.None  => 0.0
+
+    span(
+      cls := "orp-word",
+      styleAttr := s"--orp-offset: $offset",
+      span(cls := "orp-before", text.take(focus)),
+      span(cls := "orp-focus", text.lift(focus).fold("")(_.toString)),
+      span(cls := "orp-after", text.drop(focus + 1))
+    )
+
+  private def pauseTextView(s: ViewState): HtmlElement =
+    val tokens = s.tokens
+    val currentIdx = s.index
+
+    div(
+      cls := "pause-text-view",
+      // Render all tokens as flowing text with paragraph breaks
+      (0 until tokens.length).map { i =>
+        val token = tokens(i)
+        val isCurrent = i == currentIdx
+        val isParagraphBreak = i > 0 && tokens(i).paragraphIndex != tokens(i - 1).paragraphIndex
+
+        val wordSpan = span(
+          cls := (if isCurrent then "pause-word current" else "pause-word"),
+          // Use data attribute to find the current word for scrolling
+          (if isCurrent then Some(dataAttr("current") := "true") else None).toSeq,
+          token.text,
+          " "
+        )
+
+        if isParagraphBreak then
+          Seq(div(cls := "pause-paragraph-break"), wordSpan)
+        else
+          Seq(wordSpan)
+      }.flatten,
+      // Auto-scroll to current word on mount
+      onMountCallback { ctx =>
+        val el = ctx.thisNode.ref.asInstanceOf[dom.html.Element]
+        val currentWord = el.querySelector("[data-current='true']")
+        if currentWord != null then
+          val options = scalajs.js.Dynamic.literal(
+            block = "center",
+            behavior = "smooth"
+          )
+          currentWord.asInstanceOf[scalajs.js.Dynamic].scrollIntoView(options)
+      }
+    )
+
   def sentenceContext: HtmlElement = div(
-    cls := "sentence-context",
+    cls <-- AppState.viewState.signal.map { s =>
+      val base = "sentence-context"
+      if s.status == PlayStatus.Paused then s"$base hidden" else base
+    },
     children <-- AppState.viewState.signal.map { s =>
-      if s.tokens.isEmpty then Seq.empty
+      if s.tokens.isEmpty || s.status == PlayStatus.Paused then Seq.empty
       else
         val currentSentenceIdx = s.currentToken.fold(-1)(_.sentenceIndex)
         (0 until s.tokens.length)
@@ -122,15 +152,18 @@ object Components:
   def paragraphContent: HtmlElement = div(
     cls := "paragraph-content",
     children <-- AppState.viewState.signal.map { s =>
-      s.currentParagraphTokens.zipWithIndex.map { case (token, _) =>
-        val isCurrent = s.currentToken.fold(false) { t =>
-          t.text == token.text && t.sentenceIndex == token.sentenceIndex
-        }
-        span(
-          cls := (if isCurrent then "current-word" else ""),
-          token.text,
-          " "
-        )
+      s.currentToken.fold(Seq.empty[HtmlElement]) { current =>
+        (0 until s.tokens.length)
+          .filter(i => s.tokens(i).paragraphIndex == current.paragraphIndex)
+          .map { i =>
+            val token = s.tokens(i)
+            val isCurrent = i == s.index
+            span(
+              cls := (if isCurrent then "current-word" else ""),
+              token.text,
+              " "
+            )
+          }
       }
     }
   )
