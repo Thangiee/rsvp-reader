@@ -22,8 +22,8 @@ rsvp-reader/
 │       ├── Token.scala            # Word unit with ORP index, punctuation, sentence/paragraph indices
 │       ├── Tokenizer.scala        # Parses raw text → Span[Token]
 │       ├── Punctuation.scala      # Enum: None, Comma, Period, Paragraph
-│       ├── PlayStatus.scala       # Enum: Playing, Paused, Stopped, Finished
-│       ├── Command.scala          # Enum: Pause, Resume, Back(n), RestartSentence, SetSpeed(wpm), Stop
+│       ├── PlayStatus.scala       # Enum: Playing, Paused, Finished
+│       ├── Command.scala          # Enum: Pause, Resume, RestartSentence, RestartParagraph, SetSpeed(wpm)
 │       ├── ViewState.scala        # Immutable UI snapshot: tokens, index, status, wpm
 │       ├── RsvpConfig.scala       # Timing config: WPM, delays, feature flags
 │       ├── Delay.scala            # calculateDelay(token, config) → Duration
@@ -89,9 +89,7 @@ KyoApp.run {
 Lives in `shared/PlaybackEngine.scala`. Runs as an async loop using `kyo.Loop`.
 
 ```
-State machine:  Playing ←→ Paused → Stopped (via Stop command)
-                              ↑
-                          (commands)
+State machine:  Playing ←→ Paused
                 Playing → Finished (all tokens done)
 
 run(tokens):
@@ -100,7 +98,7 @@ run(tokens):
   playbackLoop:
     Loop(state):
       match state.status:
-        Stopped/Finished → exit
+        Finished → exit
         Paused  → emit(state), commands.take, apply command, continue
         Playing →
           if no more tokens → emit(Finished, index=last), exit
@@ -168,7 +166,7 @@ All created with `Channel.initUnscoped` to avoid being closed when `KyoApp.run`'
 - **Playing:** Single word with ORP highlighting (before/focus/after spans) + sentence context below
 - **Paused:** Scrollable full-text view with current word highlighted, sentence context hidden
 - **Finished:** Same as Paused — full-text view with last word highlighted. Pressing play restarts from beginning.
-- **Stopped (no tokens):** "READY TO READ" placeholder
+- **Paused (no tokens):** "READY TO READ" placeholder
 
 **Keyboard handling:** `Components.keyboardHandler` maps key presses to actions via configurable `KeyBindings`. Guards against capturing when settings modal is open.
 

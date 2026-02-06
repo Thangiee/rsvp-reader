@@ -7,8 +7,8 @@ import kyo.*
   * This is the "Word Iterator" loop - it handles playback of a SINGLE text:
   * - Iterates through tokens word-by-word at configured WPM
   * - Uses Async.race(sleep, command) to respond instantly to pause/resume
-  * - Manages state machine: Playing → Paused → Playing → ... → Finished
-  * - Exits when all tokens displayed or Stop command received
+  * - Manages state machine: Paused → Playing → Paused → ... → Finished
+  * - Exits when all tokens displayed
   *
   * Uses Kyo Channel for responsive command processing (pause/resume interrupts sleep).
   * Uses Kyo Loop for stack-safe, explicit state machine semantics.
@@ -51,14 +51,14 @@ class PlaybackEngine(
     * State machine with three states:
     * - Playing: Display word, sleep, advance (or handle command)
     * - Paused: Wait for command (resume/back/etc.)
-    * - Stopped/Finished: Exit loop (Loop.done)
+    * - Finished: Exit loop (Loop.done)
     *
     * Uses Kyo Loop for explicit continue/done semantics instead of recursion.
     */
   private def playbackLoop(initial: ViewState): Unit < PlaybackEffect =
     Loop(initial) { state =>
       state.status match
-        case PlayStatus.Stopped | PlayStatus.Finished => Loop.done(())
+        case PlayStatus.Finished => Loop.done(())
         case PlayStatus.Paused  => handlePaused(state)
         case PlayStatus.Playing => handlePlaying(state)
     }
@@ -95,7 +95,7 @@ class PlaybackEngine(
     emit(state).andThen {
       commands.take.map { cmd =>
         val newState = applyCommand(cmd, state)
-        if newState.status == PlayStatus.Stopped then done
+        if newState.status == PlayStatus.Finished then done
         else if cmd == Command.Resume then
           // Emit playing state so UI transitions, then delay before advancing words
           emit(newState).andThen {

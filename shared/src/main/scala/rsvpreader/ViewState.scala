@@ -6,7 +6,7 @@ import kyo.*
   *
   * @param tokens All tokens in the text being read
   * @param index  Current token position (0-based)
-  * @param status Current playback status (Playing/Paused/Stopped)
+  * @param status Current playback status (Playing/Paused/Finished)
   * @param wpm    Current words-per-minute speed
   */
 case class ViewState(

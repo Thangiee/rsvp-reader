@@ -53,7 +53,7 @@ shared (JVM + JS)  ←── backend (JVM only)
 **shared/** — Platform-independent RSVP domain types:
 - `Token` — word with ORP focus index, punctuation, sentence/paragraph indices
 - `Tokenizer` — parses text into `Span[Token]`, calculates ORP at ~1/3 of word length
-- `Command` — playback commands (Pause, Resume, Back, RestartSentence, SetSpeed, Stop)
+- `Command` — playback commands (Pause, Resume, RestartSentence, RestartParagraph, SetSpeed)
 - `RsvpConfig` — timing configuration (WPM, delays for punctuation/paragraphs)
 - `calculateDelay` — computes display duration based on word length and punctuation
 
@@ -93,5 +93,5 @@ shared (JVM + JS)  ←── backend (JVM only)
 - ORP (Optimal Recognition Point) alignment at ~1/3 of word length
 - Punctuation pauses: periods (300ms), commas (150ms), paragraphs (500ms)
 - Word length adjustment: longer words get proportionally more display time
-- Controls: play/pause, back 10 words, restart sentence, speed adjustment (100-1000 WPM)
-- Paragraph view modal showing full context with current word highlighted
+- Controls: play/pause, restart sentence/paragraph, speed adjustment (100-1000 WPM)
+- Full-text view with current word highlighted when paused or finished

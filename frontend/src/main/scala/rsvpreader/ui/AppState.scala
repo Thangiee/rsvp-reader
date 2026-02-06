@@ -13,7 +13,7 @@ object AppState:
   val viewState: LaminarVar[ViewState] = LaminarVar(ViewState(
     tokens = Span.empty,
     index = 0,
-    status = PlayStatus.Stopped,
+    status = PlayStatus.Paused,
     wpm = 300
   ))
 
@@ -129,7 +129,6 @@ object AppState:
         case PlayStatus.Playing  => "status-dot playing"
         case PlayStatus.Paused   => "status-dot paused"
         case PlayStatus.Finished => "status-dot paused"
-        case PlayStatus.Stopped  => "status-dot"
     }
 
   val statusText: LaminarSignal[String] =
