@@ -72,10 +72,10 @@ object Components:
         div(
           span(cls := "orp-before", text.take(focus)),
           span(cls := "orp-focus", text.lift(focus).fold("")(_.toString)),
-          span(cls := "orp-after", text.drop(focus + 1))
+          span(cls := "orp-after", text.drop(focus + 1) + token.punctuation.text)
         )
       else
-        span(cls := "orp-before", text)
+        span(cls := "orp-before", text + token.punctuation.text)
     )
 
   private def pauseTextView(s: ViewState): HtmlElement =
