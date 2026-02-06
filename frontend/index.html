@@ -16,15 +16,15 @@
         --text-primary: #e8e4dc;
         --text-secondary: #8a8580;
         --text-muted: #4a4845;
-        --orp-color: #d4a574;
-        --orp-glow: rgba(212, 165, 116, 0.3);
-        --accent: #d4a574;
-        --accent-hover: #e0b88a;
+        --orp-color: #c45050;
+        --orp-glow: rgba(196, 80, 80, 0.3);
+        --accent: #c45050;
+        --accent-hover: #d46a6a;
         --border: #2a2a28;
         --control-bg: #1a1a18;
         --control-hover: #252522;
         --playing-pulse: #5a9e6f;
-        --paused-color: #b8a07a;
+        --paused-color: #a05050;
         --stopped-color: #6a6560;
       }
 
@@ -110,24 +110,7 @@
         margin-bottom: 2rem;
       }
 
-      /* Subtle spotlight glow behind focus word */
-      .focus-container::before {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 300px;
-        height: 120px;
-        background: radial-gradient(ellipse, var(--orp-glow) 0%, transparent 70%);
-        opacity: 0;
-        transition: opacity 0.5s ease;
-        pointer-events: none;
-      }
-
-      .focus-container.playing::before {
-        opacity: 1;
-      }
+      /* Spotlight behind focus word (disabled) */
 
       /* ORP alignment guides */
       .orp-guides {
@@ -195,7 +178,6 @@
         color: var(--orp-color);
         font-weight: 600;
         position: relative;
-        text-shadow: 0 0 30px var(--orp-glow);
       }
 
       .orp-after {
@@ -249,9 +231,7 @@
         display: none;
       }
 
-      .focus-container.expanded::before {
-        opacity: 0 !important;
-      }
+      /* (spotlight removed) */
 
       .pause-text-view {
         max-height: 50vh;
@@ -292,16 +272,14 @@
       }
 
       .pause-word {
-        transition: all 0.15s ease;
       }
 
       .pause-word.current {
         color: var(--orp-color);
         font-weight: 500;
-        background: rgba(212, 165, 116, 0.15);
+        background: rgba(196, 80, 80, 0.15);
         padding: 0.1em 0.25em;
         border-radius: 4px;
-        box-shadow: 0 0 12px rgba(212, 165, 116, 0.1);
       }
 
       .pause-paragraph-break {
@@ -319,9 +297,8 @@
         pointer-events: none;
       }
 
-      /* Smooth transitions for focus area mode switching */
+      /* No transition for focus area — instant switch avoids layout shifting */
       .focus-area {
-        transition: font-size 0.3s ease, min-height 0.3s ease;
       }
 
       /* Progress bar */
@@ -357,7 +334,7 @@
         height: 7px;
         background: var(--accent);
         border-radius: 50%;
-        box-shadow: 0 0 10px var(--orp-glow);
+        box-shadow: none;
       }
 
       .progress-stats {
@@ -609,7 +586,7 @@
       .paragraph-content .current-word {
         color: var(--orp-color);
         font-weight: 500;
-        background: rgba(212, 165, 116, 0.15);
+        background: rgba(196, 80, 80, 0.15);
         padding: 0.1em 0.3em;
         border-radius: 3px;
       }
