@@ -118,21 +118,36 @@ object Components:
       val base = "sentence-context"
       if s.status == PlayStatus.Paused then s"$base hidden" else base
     },
-    children <-- AppState.viewState.signal.map { s =>
+    children <-- AppState.viewState.signal.combineWith(AppState.contextSentences.signal).map { (s, numSentences) =>
       if s.tokens.isEmpty || s.status == PlayStatus.Paused then Seq.empty
       else
         val currentSentenceIdx = s.currentToken.fold(-1)(_.sentenceIndex)
-        (0 until s.tokens.length)
-          .filter(i => s.tokens(i).sentenceIndex == currentSentenceIdx)
-          .map { i =>
-            val token = s.tokens(i)
-            val isCurrent = i == s.index
-            span(
-              cls := (if isCurrent then "sentence-word current" else "sentence-word"),
-              s"${token.text}${token.punctuation.text}",
-              " "
-            )
-          }
+        if currentSentenceIdx < 0 then Seq.empty
+        else
+          // Compute centered window of sentence indices
+          val before = (numSentences - 1) / 2
+          val after  = numSentences - 1 - before
+          val minSentence = currentSentenceIdx - before
+          val maxSentence = currentSentenceIdx + after
+
+          (0 until s.tokens.length)
+            .filter { i =>
+              val si = s.tokens(i).sentenceIndex
+              si >= minSentence && si <= maxSentence
+            }
+            .map { i =>
+              val token = s.tokens(i)
+              val isCurrent = i == s.index
+              val isCurrentSentence = token.sentenceIndex == currentSentenceIdx
+              val cls0 = if isCurrent then "sentence-word current"
+                          else if !isCurrentSentence then "sentence-word dim"
+                          else "sentence-word"
+              span(
+                cls := cls0,
+                s"${token.text}${token.punctuation.text}",
+                " "
+              )
+            }
     }
   )
 
