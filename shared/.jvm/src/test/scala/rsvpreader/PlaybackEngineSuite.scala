@@ -50,12 +50,12 @@ class PlaybackEngineSuite extends FunSuite:
     def send(cmd: Command): Unit < (Async & Abort[Closed]) =
       commandCh.put(cmd)
 
-    /** Collect all states until Stopped. Blocks on each take. */
-    def collectUntilStopped: Seq[ViewState] < (Async & Abort[Closed]) =
+    /** Collect all states until Finished (natural playback completion). Blocks on each take. */
+    def collectUntilFinished: Seq[ViewState] < (Async & Abort[Closed]) =
       Loop(Seq.empty[ViewState]) { acc =>
         stateCh.take.map { state =>
           val updated = acc :+ state
-          if state.status == PlayStatus.Stopped then Loop.done(updated)
+          if state.status == PlayStatus.Finished then Loop.done(updated)
           else Loop.continue(updated)
         }
       }
@@ -109,19 +109,19 @@ class PlaybackEngineSuite extends FunSuite:
 
   // -- State emission tests --
 
-  test("emits initial paused state then progresses through all tokens to stopped"):
+  test("emits initial paused state then progresses through all tokens to finished"):
     runTest {
       direct {
         val h     = Harness.init().now
         val fiber = h.start().now
         h.send(Command.Resume).now
         fiber.get.now
-        val states = h.collectUntilStopped.now
+        val states = h.collectUntilFinished.now
 
         assert(states.length >= 4, s"Expected at least 4 states, got ${states.length}")
         assertEquals(states.head.index, 0)
         assertEquals(states.head.status, PlayStatus.Paused)
-        assertEquals(states.last.status, PlayStatus.Stopped)
+        assertEquals(states.last.status, PlayStatus.Finished)
         val indices = states.map(_.index).distinct
         assert(indices.contains(0) && indices.contains(1) && indices.contains(2),
           s"Expected indices 0, 1, 2 — got $indices")
@@ -150,7 +150,7 @@ class PlaybackEngineSuite extends FunSuite:
         // Clean up
         h.send(Command.Resume).now
         fiber.get.now
-        h.collectUntilStopped.now
+        h.collectUntilFinished.now
       }
     }
 
@@ -183,15 +183,15 @@ class PlaybackEngineSuite extends FunSuite:
 
         h.send(Command.Resume).now
         fiber.get.now
-        h.collectUntilStopped.now
+        h.collectUntilFinished.now
       }
     }
 
-  // -- Stopped state emission tests (regression: race could lose final state) --
+  // -- Finished state emission tests (regression: race could lose final state) --
 
-  test("stopped state is emitted and retrievable after natural playback completion"):
+  test("finished state is emitted and retrievable after natural playback completion"):
     // Regression: Async.race in engineLoop interrupted the state consumer before it
-    // processed the final Stopped state, leaving the UI stuck on the last Playing state.
+    // processed the final Finished state, leaving the UI stuck on the last Playing state.
     // The fix: drain remaining states from channel after race completes.
     runTest {
       direct {
@@ -202,16 +202,16 @@ class PlaybackEngineSuite extends FunSuite:
 
         // Simulate the drain-remaining-states pattern from engineLoop fix
         val remaining = h.drainAvailable.now
-        assert(remaining.exists(_.status == PlayStatus.Stopped),
-          s"Expected Stopped state in channel after engine completed, got: ${remaining.map(s => (s.index, s.status))}")
+        assert(remaining.exists(_.status == PlayStatus.Finished),
+          s"Expected Finished state in channel after engine completed, got: ${remaining.map(s => (s.index, s.status))}")
       }
     }
 
-  test("stopped state survives engine-consumer coordination via channel close"):
+  test("finished state survives engine-consumer coordination via channel close"):
     // Simulates the production pattern: consumer runs as background fiber,
     // engine runs to completion, then channel is closed to flush remaining states.
     // Regression: Async.race could interrupt the consumer after it dequeued the
-    // Stopped state but before the continuation ran, losing it entirely.
+    // Finished state but before the continuation ran, losing it entirely.
     runTest {
       direct {
         val h = Harness.init().now
@@ -241,8 +241,8 @@ class PlaybackEngineSuite extends FunSuite:
         // Wait for consumer to finish
         consumerFiber.get.now
 
-        assert(consumed.exists(_.status == PlayStatus.Stopped),
-          s"Expected Stopped state captured via consumer or close, got: ${consumed.map(s => (s.index, s.status))}")
+        assert(consumed.exists(_.status == PlayStatus.Finished),
+          s"Expected Finished state captured via consumer or close, got: ${consumed.map(s => (s.index, s.status))}")
       }
     }
 
@@ -276,9 +276,9 @@ class PlaybackEngineSuite extends FunSuite:
         val fiber = h.start().now
         h.send(Command.Resume).now
         fiber.get.now
-        val states = h.collectUntilStopped.now
+        val states = h.collectUntilFinished.now
 
-        assertEquals(states.last.status, PlayStatus.Stopped)
+        assertEquals(states.last.status, PlayStatus.Finished)
       }
     }
 
@@ -296,7 +296,7 @@ class PlaybackEngineSuite extends FunSuite:
         val statesAfterBack = h.drainAvailable.now
         h.send(Command.Resume).now
         fiber.get.now
-        val finalStates = h.collectUntilStopped.now
+        val finalStates = h.collectUntilFinished.now
 
         val allStates = statesAfterBack ++ finalStates
         assert(allStates.exists(_.index == 0),
@@ -312,7 +312,7 @@ class PlaybackEngineSuite extends FunSuite:
         h.send(Command.SetSpeed(500)).now
         h.send(Command.Resume).now
         fiber.get.now
-        val states = h.collectUntilStopped.now
+        val states = h.collectUntilFinished.now
 
         assert(states.exists(_.wpm == 500),
           s"Expected state with wpm=500, got: ${states.map(_.wpm)}")
@@ -331,7 +331,7 @@ class PlaybackEngineSuite extends FunSuite:
         val statesAfterStop = h.drainAvailable.now
         h.send(Command.Resume).now
         fiber.get.now
-        val finalStates = h.collectUntilStopped.now
+        val finalStates = h.collectUntilFinished.now
 
         val allStates = statesAfterStop ++ finalStates
         val stoppedAtZero = allStates.exists(s => s.index == 0 && s.status == PlayStatus.Paused)
@@ -358,8 +358,8 @@ class PlaybackEngineSuite extends FunSuite:
           tick.now
           h.send(Command.Resume).now
           advanceUntilDone(control, fiber).now
-          val finalStates = h.collectUntilStopped.now
-          assertEquals(finalStates.last.status, PlayStatus.Stopped)
+          val finalStates = h.collectUntilFinished.now
+          assertEquals(finalStates.last.status, PlayStatus.Finished)
         }
       }
     }
@@ -397,9 +397,9 @@ class PlaybackEngineSuite extends FunSuite:
           control.advance(100.millis).now
           tick.now
           fiber.get.now
-          val states = h.collectUntilStopped.now
+          val states = h.collectUntilFinished.now
           assert(!isDoneBefore, "Should not be done before 200ms delay elapses")
-          assertEquals(states.last.status, PlayStatus.Stopped)
+          assertEquals(states.last.status, PlayStatus.Finished)
         }
       }
     }
@@ -429,8 +429,8 @@ class PlaybackEngineSuite extends FunSuite:
         // Resume to finish
         h.send(Command.Resume).now
         fiber.get.now
-        val finalStates = h.collectUntilStopped.now
-        assertEquals(finalStates.last.status, PlayStatus.Stopped)
+        val finalStates = h.collectUntilFinished.now
+        assertEquals(finalStates.last.status, PlayStatus.Finished)
       }
     }
 
@@ -449,7 +449,7 @@ class PlaybackEngineSuite extends FunSuite:
 
         // Engine should run to completion without pausing at paragraph boundary
         fiber.get.now
-        val states = h.collectUntilStopped.now
+        val states = h.collectUntilFinished.now
 
         // Should see no mid-playback auto-pause (paused at index > 0 means paragraph boundary pause)
         val autoPauses = states.filter(s => s.status == PlayStatus.Paused && s.index > 0)
@@ -497,8 +497,8 @@ class PlaybackEngineSuite extends FunSuite:
           tick.now
           advanceUntilDone(control, fiber).now
 
-          val states = h.collectUntilStopped.now
-          assertEquals(states.last.status, PlayStatus.Stopped)
+          val states = h.collectUntilFinished.now
+          assertEquals(states.last.status, PlayStatus.Finished)
         }
       }
     }

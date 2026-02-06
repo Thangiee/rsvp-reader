@@ -22,7 +22,7 @@ rsvp-reader/
 │       ├── Token.scala            # Word unit with ORP index, punctuation, sentence/paragraph indices
 │       ├── Tokenizer.scala        # Parses raw text → Span[Token]
 │       ├── Punctuation.scala      # Enum: None, Comma, Period, Paragraph
-│       ├── PlayStatus.scala       # Enum: Playing, Paused, Stopped
+│       ├── PlayStatus.scala       # Enum: Playing, Paused, Stopped, Finished
 │       ├── Command.scala          # Enum: Pause, Resume, Back(n), RestartSentence, SetSpeed(wpm), Stop
 │       ├── ViewState.scala        # Immutable UI snapshot: tokens, index, status, wpm
 │       ├── RsvpConfig.scala       # Timing config: WPM, delays, feature flags
@@ -89,9 +89,10 @@ KyoApp.run {
 Lives in `shared/PlaybackEngine.scala`. Runs as an async loop using `kyo.Loop`.
 
 ```
-State machine:  Playing ←→ Paused → Stopped
-                              ↑          ↑
-                          (commands)  (all tokens done)
+State machine:  Playing ←→ Paused → Stopped (via Stop command)
+                              ↑
+                          (commands)
+                Playing → Finished (all tokens done)
 
 run(tokens):
   emit(initial Paused state)
@@ -99,10 +100,10 @@ run(tokens):
   playbackLoop:
     Loop(state):
       match state.status:
-        Stopped → exit
+        Stopped/Finished → exit
         Paused  → emit(state), commands.take, apply command, continue
         Playing →
-          if no more tokens → emit(Stopped), exit
+          if no more tokens → emit(Finished, index=last), exit
           emit(state)
           read config from AtomicRef (enables mid-playback config changes)
           Async.race(sleep(delay), commands.take)
@@ -122,7 +123,7 @@ stateOut.put(ViewState) ──→ stateCh ──→ stateConsumerLoop ──→ 
                                                               viewState.signal ──→ reactive DOM
 ```
 
-The `stateConsumerLoop` runs as a background fiber. When the engine finishes, `stateCh.close` ensures any buffered final state (like Stopped) reaches the UI and signals the consumer to exit via `Abort[Closed]`.
+The `stateConsumerLoop` runs as a background fiber. When the engine finishes, `stateCh.close` ensures any buffered final state (like Finished) reaches the UI and signals the consumer to exit via `Abort[Closed]`.
 
 ### 5. Commands (UI → Engine)
 
@@ -134,7 +135,7 @@ User clicks button / presses key
 
 All command dispatch goes through `AppState.sendCommand` which uses `Channel.unsafe.offer`. This is non-blocking and returns `false` if the channel is full (capacity 1), silently dropping the command. This is acceptable because the engine consumes commands quickly.
 
-`togglePlayPause()` checks `viewState.now().status` to decide whether to send `Pause` or `Resume` — this is why the engine must emit state when entering Paused, so the UI has the correct status.
+`togglePlayPause()` checks `viewState.now().status` to decide whether to send `Pause` or `Resume`. When status is `Finished`, it re-sends the current tokens through `tokensCh` to start a fresh playback session from the beginning.
 
 ## Channels (Capacity 1, All Unscoped)
 
@@ -166,6 +167,8 @@ All created with `Channel.initUnscoped` to avoid being closed when `KyoApp.run`'
 **Components** are pure Laminar elements that bind to signals. The focus word display switches between:
 - **Playing:** Single word with ORP highlighting (before/focus/after spans) + sentence context below
 - **Paused:** Scrollable full-text view with current word highlighted, sentence context hidden
+- **Finished:** Same as Paused — full-text view with last word highlighted. Pressing play restarts from beginning.
+- **Stopped (no tokens):** "READY TO READ" placeholder
 
 **Keyboard handling:** `Components.keyboardHandler` maps key presses to actions via configurable `KeyBindings`. Guards against capturing when settings modal is open.
 

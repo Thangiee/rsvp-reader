@@ -46,7 +46,7 @@ object Components:
       s.currentToken match
         case Absent => span(cls := "focus-placeholder", "READY TO READ")
         case Present(token) =>
-          if s.status == PlayStatus.Paused then
+          if s.status == PlayStatus.Paused || s.status == PlayStatus.Finished then
             pauseTextView(s)
           else
             orpWordView(token, s.index)
@@ -116,10 +116,10 @@ object Components:
   def sentenceContext: HtmlElement = div(
     cls <-- AppState.viewState.signal.map { s =>
       val base = "sentence-context"
-      if s.status == PlayStatus.Paused then s"$base hidden" else base
+      if s.status == PlayStatus.Paused || s.status == PlayStatus.Finished then s"$base hidden" else base
     },
     children <-- AppState.viewState.signal.map { s =>
-      if s.tokens.isEmpty || s.status == PlayStatus.Paused then Seq.empty
+      if s.tokens.isEmpty || s.status == PlayStatus.Paused || s.status == PlayStatus.Finished then Seq.empty
       else
         val currentSentenceIdx = s.currentToken.fold(-1)(_.sentenceIndex)
         (0 until s.tokens.length)

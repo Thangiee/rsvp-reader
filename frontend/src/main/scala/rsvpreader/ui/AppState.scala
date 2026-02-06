@@ -90,8 +90,12 @@ object AppState:
 
   def togglePlayPause()(using AllowUnsafe): Unit =
     viewState.now().status match
-      case PlayStatus.Playing => sendCommand(Command.Pause)
-      case _                  => sendCommand(Command.Resume)
+      case PlayStatus.Playing  => sendCommand(Command.Pause)
+      case PlayStatus.Finished =>
+        // Re-send current tokens to start a fresh playback session
+        val tokens = viewState.now().tokens
+        _tokensChannel.foreach(_.unsafe.offer(tokens))
+      case _ => sendCommand(Command.Resume)
 
   def adjustSpeed(delta: Int)(using AllowUnsafe): Unit =
     val current = viewState.now().wpm
@@ -112,16 +116,17 @@ object AppState:
     viewState.signal.map { s =>
       val base = "focus-container"
       val playing = if s.status == PlayStatus.Playing then " playing" else ""
-      val expanded = if s.status == PlayStatus.Paused && s.tokens.length > 0 then " expanded" else ""
+      val expanded = if (s.status == PlayStatus.Paused || s.status == PlayStatus.Finished) && s.tokens.length > 0 then " expanded" else ""
       base + playing + expanded
     }
 
   val statusDotCls: LaminarSignal[String] =
     viewState.signal.map { s =>
       s.status match
-        case PlayStatus.Playing => "status-dot playing"
-        case PlayStatus.Paused  => "status-dot paused"
-        case PlayStatus.Stopped => "status-dot"
+        case PlayStatus.Playing  => "status-dot playing"
+        case PlayStatus.Paused   => "status-dot paused"
+        case PlayStatus.Finished => "status-dot paused"
+        case PlayStatus.Stopped  => "status-dot"
     }
 
   val statusText: LaminarSignal[String] =

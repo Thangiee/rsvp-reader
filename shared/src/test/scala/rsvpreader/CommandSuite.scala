@@ -14,7 +14,8 @@ class CommandSuite extends FunSuite:
 
   test("PlayStatus has all expected cases"):
     val cases = PlayStatus.values.toSet
-    assertEquals(cases.size, 3)
+    assertEquals(cases.size, 4)
     assert(cases.contains(PlayStatus.Playing), "should contain Playing")
     assert(cases.contains(PlayStatus.Paused), "should contain Paused")
     assert(cases.contains(PlayStatus.Stopped), "should contain Stopped")
+    assert(cases.contains(PlayStatus.Finished), "should contain Finished")

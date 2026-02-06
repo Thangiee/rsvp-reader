@@ -7,7 +7,7 @@ import kyo.*
   * This is the "Word Iterator" loop - it handles playback of a SINGLE text:
   * - Iterates through tokens word-by-word at configured WPM
   * - Uses Async.race(sleep, command) to respond instantly to pause/resume
-  * - Manages state machine: Playing → Paused → Playing → ... → Stopped
+  * - Manages state machine: Playing → Paused → Playing → ... → Finished
   * - Exits when all tokens displayed or Stop command received
   *
   * Uses Kyo Channel for responsive command processing (pause/resume interrupts sleep).
@@ -51,14 +51,14 @@ class PlaybackEngine(
     * State machine with three states:
     * - Playing: Display word, sleep, advance (or handle command)
     * - Paused: Wait for command (resume/back/etc.)
-    * - Stopped: Exit loop (Loop.done)
+    * - Stopped/Finished: Exit loop (Loop.done)
     *
     * Uses Kyo Loop for explicit continue/done semantics instead of recursion.
     */
   private def playbackLoop(initial: ViewState): Unit < PlaybackEffect =
     Loop(initial) { state =>
       state.status match
-        case PlayStatus.Stopped => Loop.done(())
+        case PlayStatus.Stopped | PlayStatus.Finished => Loop.done(())
         case PlayStatus.Paused  => handlePaused(state)
         case PlayStatus.Playing => handlePlaying(state)
     }
@@ -66,8 +66,8 @@ class PlaybackEngine(
   private def handlePlaying(state: ViewState): Outcome < PlaybackEffect =
     state.currentToken match
       case Absent =>
-        val stopped = state.copy(status = PlayStatus.Stopped)
-        emit(stopped).andThen(done)
+        val finished = state.copy(index = state.tokens.length - 1, status = PlayStatus.Finished)
+        emit(finished).andThen(done)
 
       case Present(token) =>
         emit(state).andThen {
