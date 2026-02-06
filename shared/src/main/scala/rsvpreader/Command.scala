@@ -4,7 +4,6 @@ package rsvpreader
 enum Command:
   case Pause
   case Resume
-  case Back(words: Int)
   case RestartSentence
+  case RestartParagraph
   case SetSpeed(wpm: Int)
-  case Stop

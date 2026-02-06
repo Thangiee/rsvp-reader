@@ -34,23 +34,10 @@ object Layout:
     Components.secondaryControls
   )
 
-  def paragraphModal: HtmlElement = div(
-    cls <-- AppState.showParagraphView.signal.map { show =>
-      if show then "paragraph-view visible" else "paragraph-view"
-    },
-    button(
-      cls := "close-paragraph",
-      "×",
-      onClick --> (_ => AppState.showParagraphView.set(false))
-    ),
-    Components.paragraphContent
-  )
-
   def app(onTextLoaded: String => Unit)(using AllowUnsafe): HtmlElement = div(
     header,
     readingTheater,
     controlsDock,
-    paragraphModal,
     Components.textInputModal(onTextLoaded),
     Settings.modal,
     Components.keyboardHints,

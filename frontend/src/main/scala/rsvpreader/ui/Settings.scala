@@ -128,11 +128,8 @@ object Settings:
   )
 
   private def actionLabel(action: KeyAction): String = action match
-    case KeyAction.PlayPause       => "Play / Pause"
-    case KeyAction.Back            => "Back 10 words"
-    case KeyAction.RestartSentence => "Restart sentence"
-    case KeyAction.ShowParagraph   => "Show paragraph"
-    case KeyAction.CloseParagraph  => "Close paragraph"
-    case KeyAction.SpeedUp         => "Speed up"
-    case KeyAction.SpeedDown       => "Speed down"
-    case KeyAction.Reset           => "Reset"
+    case KeyAction.PlayPause        => "Play / Pause"
+    case KeyAction.RestartSentence  => "Restart sentence"
+    case KeyAction.RestartParagraph => "Restart paragraph"
+    case KeyAction.SpeedUp          => "Speed up"
+    case KeyAction.SpeedDown        => "Speed down"

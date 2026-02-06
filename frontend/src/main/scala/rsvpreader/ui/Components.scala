@@ -169,32 +169,13 @@ object Components:
     )
   )
 
-  def paragraphContent: HtmlElement = div(
-    cls := "paragraph-content",
-    children <-- AppState.viewState.signal.map { s =>
-      s.currentToken.fold(Seq.empty[HtmlElement]) { current =>
-        (0 until s.tokens.length)
-          .filter(i => s.tokens(i).paragraphIndex == current.paragraphIndex)
-          .map { i =>
-            val token = s.tokens(i)
-            val isCurrent = i == s.index
-            span(
-              cls := (if isCurrent then "current-word" else ""),
-              s"${token.text}${token.punctuation.text}",
-              " "
-            )
-          }
-      }
-    }
-  )
-
   def primaryControls(using AllowUnsafe): HtmlElement = div(
     cls := "primary-controls",
     button(
       cls := "control-btn medium",
-      "⏪",
-      title := "Back 10 words",
-      onClick --> (_ => AppState.sendCommand(Command.Back(10)))
+      "¶",
+      title := "Restart paragraph",
+      onClick --> (_ => AppState.sendCommand(Command.RestartParagraph))
     ),
     button(
       cls := "control-btn medium",
@@ -216,21 +197,6 @@ object Components:
     ),
     button(
       cls := "control-chip",
-      span(cls := "icon", "¶"),
-      "Show Paragraph",
-      onClick --> { _ =>
-        AppState.sendCommand(Command.Pause)
-        AppState.showParagraphView.set(true)
-      }
-    ),
-    button(
-      cls := "control-chip",
-      span(cls := "icon", "⏹"),
-      "Reset",
-      onClick --> (_ => AppState.sendCommand(Command.Stop))
-    ),
-    button(
-      cls := "control-chip",
       span(cls := "icon", "⚙"),
       "Settings",
       onClick --> (_ => AppState.showSettingsModal.set(true))
@@ -247,21 +213,14 @@ object Components:
             case KeyAction.PlayPause =>
               event.preventDefault()
               AppState.togglePlayPause()
-            case KeyAction.Back =>
-              AppState.sendCommand(Command.Back(10))
             case KeyAction.RestartSentence =>
               AppState.sendCommand(Command.RestartSentence)
-            case KeyAction.ShowParagraph =>
-              AppState.sendCommand(Command.Pause)
-              AppState.showParagraphView.update(!_)
-            case KeyAction.CloseParagraph =>
-              AppState.showParagraphView.set(false)
+            case KeyAction.RestartParagraph =>
+              AppState.sendCommand(Command.RestartParagraph)
             case KeyAction.SpeedUp =>
               AppState.adjustSpeed(50)
             case KeyAction.SpeedDown =>
               AppState.adjustSpeed(-50)
-            case KeyAction.Reset =>
-              AppState.sendCommand(Command.Stop)
         }
     }
 
@@ -270,9 +229,8 @@ object Components:
     children <-- AppState.currentKeyBindings.signal.map { bindings =>
       Seq(
         keyHint(bindings.keyFor(KeyAction.PlayPause), "Play/Pause"),
-        keyHint(bindings.keyFor(KeyAction.Back), "Back"),
-        keyHint(bindings.keyFor(KeyAction.RestartSentence), "Restart"),
-        keyHint(bindings.keyFor(KeyAction.ShowParagraph), "Paragraph")
+        keyHint(bindings.keyFor(KeyAction.RestartSentence), "Sentence"),
+        keyHint(bindings.keyFor(KeyAction.RestartParagraph), "Paragraph")
       )
     }
   )

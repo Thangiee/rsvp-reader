@@ -17,7 +17,6 @@ object AppState:
     wpm = 300
   ))
 
-  val showParagraphView: LaminarVar[Boolean] = LaminarVar(false)
   val showTextInputModal: LaminarVar[Boolean] = LaminarVar(true) // Show on start
   val showSettingsModal: LaminarVar[Boolean] = LaminarVar(false)
   val inputText: LaminarVar[String] = LaminarVar("")

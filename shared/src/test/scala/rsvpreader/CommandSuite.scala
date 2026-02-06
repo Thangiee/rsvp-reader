@@ -4,10 +4,6 @@ import munit.FunSuite
 
 class CommandSuite extends FunSuite:
 
-  test("Command.Back stores word count"):
-    val cmd: Command.Back = Command.Back(10)
-    assertEquals(cmd.words, 10)
-
   test("Command.SetSpeed stores wpm"):
     val cmd: Command.SetSpeed = Command.SetSpeed(500)
     assertEquals(cmd.wpm, 500)

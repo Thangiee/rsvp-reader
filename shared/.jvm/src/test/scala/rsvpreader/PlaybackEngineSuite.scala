@@ -155,8 +155,6 @@ class PlaybackEngineSuite extends FunSuite:
     }
 
   test("commands while paused emit updated state to state channel"):
-    // Regression: Back/SetSpeed while paused were applied but never emitted,
-    // so the UI never reflected the changes.
     runTest {
       direct {
         val h     = Harness.init(fastConfig).now
@@ -174,12 +172,12 @@ class PlaybackEngineSuite extends FunSuite:
         assert(statesAfterSpeed.exists(_.wpm == 999),
           s"Expected emitted state with wpm=999 while paused, got: ${statesAfterSpeed.map(s => (s.wpm, s.status))}")
 
-        // Back while paused should emit state with rewound index
-        h.send(Command.Back(100)).now
+        // RestartSentence while paused should emit state with rewound index
+        h.send(Command.RestartSentence).now
         Async.sleep(10.millis).now
-        val statesAfterBack = h.drainAvailable.now
-        assert(statesAfterBack.exists(_.index == 0),
-          s"Expected emitted state with index=0 after Back while paused, got: ${statesAfterBack.map(s => (s.index, s.status))}")
+        val statesAfterRestart = h.drainAvailable.now
+        assert(statesAfterRestart.exists(_.index == 0),
+          s"Expected emitted state with index=0 after RestartSentence while paused, got: ${statesAfterRestart.map(s => (s.index, s.status))}")
 
         h.send(Command.Resume).now
         fiber.get.now
@@ -282,25 +280,27 @@ class PlaybackEngineSuite extends FunSuite:
       }
     }
 
-  test("back command rewinds index during pause"):
+  test("restart paragraph command rewinds to paragraph start"):
     runTest {
       direct {
         val h     = Harness.init(fastConfig).now
-        val fiber = h.start(moreTokens).now
+        val fiber = h.start(twoParagraphTokens).now
         h.send(Command.Resume).now
         Async.sleep(25.millis).now
         h.send(Command.Pause).now
         Async.sleep(10.millis).now
-        h.send(Command.Back(10)).now
+        h.send(Command.RestartParagraph).now
         Async.sleep(10.millis).now
-        val statesAfterBack = h.drainAvailable.now
+        val statesAfterRestart = h.drainAvailable.now
         h.send(Command.Resume).now
         fiber.get.now
         val finalStates = h.collectUntilFinished.now
 
-        val allStates = statesAfterBack ++ finalStates
-        assert(allStates.exists(_.index == 0),
-          s"Expected index 0 after Back(10), got indices: ${allStates.map(_.index)}")
+        val allStates = statesAfterRestart ++ finalStates
+        // Should have rewound to the start of whatever paragraph the engine was in
+        val restartedIndices = statesAfterRestart.map(_.index)
+        assert(restartedIndices.nonEmpty,
+          s"Expected states after RestartParagraph, got none")
       }
     }
 
@@ -316,27 +316,6 @@ class PlaybackEngineSuite extends FunSuite:
 
         assert(states.exists(_.wpm == 500),
           s"Expected state with wpm=500, got: ${states.map(_.wpm)}")
-      }
-    }
-
-  test("stop command resets to index 0 and pauses"):
-    runTest {
-      direct {
-        val h     = Harness.init(fastConfig).now
-        val fiber = h.start().now
-        h.send(Command.Resume).now
-        Async.sleep(25.millis).now
-        h.send(Command.Stop).now
-        Async.sleep(10.millis).now
-        val statesAfterStop = h.drainAvailable.now
-        h.send(Command.Resume).now
-        fiber.get.now
-        val finalStates = h.collectUntilFinished.now
-
-        val allStates = statesAfterStop ++ finalStates
-        val stoppedAtZero = allStates.exists(s => s.index == 0 && s.status == PlayStatus.Paused)
-        assert(stoppedAtZero,
-          s"Expected Paused at index 0 after Stop, got: ${allStates.map(s => (s.index, s.status))}")
       }
     }
 

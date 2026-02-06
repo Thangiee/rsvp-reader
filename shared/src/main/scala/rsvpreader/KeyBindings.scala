@@ -3,13 +3,10 @@ package rsvpreader
 /** Actions that can be bound to keyboard keys. */
 enum KeyAction:
   case PlayPause
-  case Back
   case RestartSentence
-  case ShowParagraph
-  case CloseParagraph
+  case RestartParagraph
   case SpeedUp
   case SpeedDown
-  case Reset
 
 /** Configurable keyboard bindings mapping actions to key codes.
   *
@@ -26,12 +23,9 @@ case class KeyBindings(bindings: Map[KeyAction, String]):
 
 object KeyBindings:
   val default: KeyBindings = KeyBindings(Map(
-    KeyAction.PlayPause       -> " ",
-    KeyAction.Back            -> "ArrowLeft",
-    KeyAction.RestartSentence -> "r",
-    KeyAction.ShowParagraph   -> "p",
-    KeyAction.CloseParagraph  -> "Escape",
-    KeyAction.SpeedUp         -> "ArrowUp",
-    KeyAction.SpeedDown       -> "ArrowDown",
-    KeyAction.Reset           -> "s"
+    KeyAction.PlayPause        -> " ",
+    KeyAction.RestartSentence  -> "s",
+    KeyAction.RestartParagraph -> "r",
+    KeyAction.SpeedUp          -> "ArrowUp",
+    KeyAction.SpeedDown        -> "ArrowDown"
   ))
