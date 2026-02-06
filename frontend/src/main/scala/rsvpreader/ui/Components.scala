@@ -124,11 +124,10 @@ object Components:
         val currentSentenceIdx = s.currentToken.fold(-1)(_.sentenceIndex)
         if currentSentenceIdx < 0 then Seq.empty
         else
-          // Compute centered window of sentence indices
-          val before = (numSentences - 1) / 2
-          val after  = numSentences - 1 - before
-          val minSentence = currentSentenceIdx - before
-          val maxSentence = currentSentenceIdx + after
+          // Compute paged window of sentence indices
+          val page = currentSentenceIdx / numSentences
+          val minSentence = page * numSentences
+          val maxSentence = minSentence + numSentences - 1
 
           (0 until s.tokens.length)
             .filter { i =>
