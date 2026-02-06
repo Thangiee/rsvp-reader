@@ -92,10 +92,12 @@ class PlaybackEngine(
         }
 
   private def handlePaused(state: ViewState): Outcome < PlaybackEffect =
-    commands.take.map { cmd =>
-      val newState = applyCommand(cmd, state)
-      if newState.status == PlayStatus.Stopped then done
-      else Loop.continue(newState)
+    emit(state).andThen {
+      commands.take.map { cmd =>
+        val newState = applyCommand(cmd, state)
+        if newState.status == PlayStatus.Stopped then done
+        else Loop.continue(newState)
+      }
     }
 
   /** Pure function that applies a command to produce a new state. */

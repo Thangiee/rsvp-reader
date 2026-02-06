@@ -64,7 +64,7 @@ object Main extends KyoApp:
   // ─────────────────────────────────────────────────────────────────────────────
   /** Session manager loop that waits for text and runs playback.
     *
-    * Flow: Wait for tokens → Create engine + state channel → Run both in parallel → Repeat
+    * Flow: Wait for tokens → Start consumer fiber → Run engine → Close channel → Repeat
     *
     * This loop exists because DOM callbacks can't run Kyo async effects.
     * Instead, callbacks send tokens via channel, and this loop (running
@@ -87,12 +87,21 @@ object Main extends KyoApp:
           val stateCh = Channel.initUnscoped[ViewState](1).now
           val engine = PlaybackEngine(commandCh, stateCh, configRef)
 
-          // Run engine and state consumer in parallel
-          // Race ensures both stop when engine completes
-          Async.race(
-            engine.run(tokens),
-            stateConsumerLoop(stateCh)
+          // Start consumer in background — it takes states and updates the UI.
+          // Handles its own Abort[Closed] so it exits cleanly when channel is closed.
+          val consumerFiber = Fiber.init(
+            Abort.run[Closed](stateConsumerLoop(stateCh))
           ).now
+
+          // Run engine — blocks until playback finishes
+          engine.run(tokens).now
+
+          // Close state channel: returns any buffered states the consumer hasn't taken,
+          // and causes the consumer's next take to abort with Closed.
+          // This avoids the race condition where Async.race could interrupt the consumer
+          // after it dequeued a state but before the continuation (UI update) ran.
+          val remaining = stateCh.close.now
+          remaining.foreach(_.foreach(s => AppState.viewState.set(s)))
 
           Console.printLine("Playback finished, waiting for next text...").now
           Loop.continue(()).now // Loop back to wait for next text
@@ -100,8 +109,8 @@ object Main extends KyoApp:
 
   /** Consumes state updates from PlaybackEngine and updates Laminar reactive state.
     *
-    * Runs in parallel with engine.run(). When engine finishes and closes the channel,
-    * this loop exits via Abort[Closed].
+    * Runs in a background fiber alongside engine.run(). Exits when the state channel
+    * is closed (after engine completes), which triggers Abort[Closed] on take.
     */
   private def stateConsumerLoop(
     stateCh: Channel[ViewState]

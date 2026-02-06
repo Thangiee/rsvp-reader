@@ -128,6 +128,124 @@ class PlaybackEngineSuite extends FunSuite:
       }
     }
 
+  // -- Pause state emission tests (regression: handlePaused didn't emit state) --
+
+  test("pause command emits paused state to state channel"):
+    // Regression: handlePaused didn't emit, so the UI still showed Playing status.
+    // togglePlayPause checked UI status (Playing) and sent Pause again instead of Resume.
+    runTest {
+      direct {
+        val h     = Harness.init(fastConfig).now
+        val fiber = h.start(moreTokens).now
+        h.send(Command.Resume).now
+        Async.sleep(15.millis).now
+        h.send(Command.Pause).now
+        Async.sleep(20.millis).now
+        val states = h.drainAvailable.now
+
+        val pausedStates = states.filter(_.status == PlayStatus.Paused)
+        assert(pausedStates.nonEmpty,
+          s"Expected at least one Paused state after pause command, got: ${states.map(s => (s.index, s.status))}")
+
+        // Clean up
+        h.send(Command.Resume).now
+        fiber.get.now
+        h.collectUntilStopped.now
+      }
+    }
+
+  test("commands while paused emit updated state to state channel"):
+    // Regression: Back/SetSpeed while paused were applied but never emitted,
+    // so the UI never reflected the changes.
+    runTest {
+      direct {
+        val h     = Harness.init(fastConfig).now
+        val fiber = h.start(moreTokens).now
+        h.send(Command.Resume).now
+        Async.sleep(25.millis).now
+        h.send(Command.Pause).now
+        Async.sleep(10.millis).now
+        h.drainAvailable.now // clear buffer
+
+        // SetSpeed while paused should emit state with new WPM
+        h.send(Command.SetSpeed(999)).now
+        Async.sleep(10.millis).now
+        val statesAfterSpeed = h.drainAvailable.now
+        assert(statesAfterSpeed.exists(_.wpm == 999),
+          s"Expected emitted state with wpm=999 while paused, got: ${statesAfterSpeed.map(s => (s.wpm, s.status))}")
+
+        // Back while paused should emit state with rewound index
+        h.send(Command.Back(100)).now
+        Async.sleep(10.millis).now
+        val statesAfterBack = h.drainAvailable.now
+        assert(statesAfterBack.exists(_.index == 0),
+          s"Expected emitted state with index=0 after Back while paused, got: ${statesAfterBack.map(s => (s.index, s.status))}")
+
+        h.send(Command.Resume).now
+        fiber.get.now
+        h.collectUntilStopped.now
+      }
+    }
+
+  // -- Stopped state emission tests (regression: race could lose final state) --
+
+  test("stopped state is emitted and retrievable after natural playback completion"):
+    // Regression: Async.race in engineLoop interrupted the state consumer before it
+    // processed the final Stopped state, leaving the UI stuck on the last Playing state.
+    // The fix: drain remaining states from channel after race completes.
+    runTest {
+      direct {
+        val h     = Harness.init().now
+        val fiber = h.start().now
+        h.send(Command.Resume).now
+        fiber.get.now
+
+        // Simulate the drain-remaining-states pattern from engineLoop fix
+        val remaining = h.drainAvailable.now
+        assert(remaining.exists(_.status == PlayStatus.Stopped),
+          s"Expected Stopped state in channel after engine completed, got: ${remaining.map(s => (s.index, s.status))}")
+      }
+    }
+
+  test("stopped state survives engine-consumer coordination via channel close"):
+    // Simulates the production pattern: consumer runs as background fiber,
+    // engine runs to completion, then channel is closed to flush remaining states.
+    // Regression: Async.race could interrupt the consumer after it dequeued the
+    // Stopped state but before the continuation ran, losing it entirely.
+    runTest {
+      direct {
+        val h = Harness.init().now
+        val consumed = scala.collection.mutable.ArrayBuffer[ViewState]()
+
+        h.send(Command.Resume).now
+
+        // Start consumer as background fiber (same pattern as engineLoop)
+        val consumerFiber = Fiber.init(
+          Abort.run[Closed](
+            Loop(()) { _ =>
+              h.stateCh.take.map { state =>
+                consumed += state
+                Loop.continue(())
+              }
+            }
+          )
+        ).now
+
+        // Run engine to completion
+        h.engine.run(tokens).now
+
+        // Close channel — flushes buffer and signals consumer to exit
+        val remaining = h.stateCh.close.now
+        remaining.foreach(_.foreach(consumed += _))
+
+        // Wait for consumer to finish
+        consumerFiber.get.now
+
+        assert(consumed.exists(_.status == PlayStatus.Stopped),
+          s"Expected Stopped state captured via consumer or close, got: ${consumed.map(s => (s.index, s.status))}")
+      }
+    }
+
   // -- Command tests (Async.sleep for simple interleaving) --
 
   test("pause command stops progression"):
@@ -333,9 +451,9 @@ class PlaybackEngineSuite extends FunSuite:
         fiber.get.now
         val states = h.collectUntilStopped.now
 
-        // Should only see the initial Paused state (from start), no mid-playback pause
-        val pausedAfterStart = states.drop(1).filter(_.status == PlayStatus.Paused)
-        assertEquals(pausedAfterStart.length, 0,
+        // Should see no mid-playback auto-pause (paused at index > 0 means paragraph boundary pause)
+        val autoPauses = states.filter(s => s.status == PlayStatus.Paused && s.index > 0)
+        assertEquals(autoPauses.length, 0,
           s"Expected no auto-pause after disabling, got: ${states.map(s => (s.index, s.status))}")
       }
     }
