@@ -42,17 +42,20 @@ object Main extends KyoApp:
   // ─────────────────────────────────────────────────────────────────────────────
   run {
     direct {
-      // Initialize channels (unscoped to prevent closure when run block's scope ends)
+      // Initialize config ref and channels (unscoped to prevent closure when run block's scope ends)
+      // - configRef: shared RSVP config, readable mid-playback for dynamic settings
       // - commandCh: UI sends commands (pause/resume/back) to PlaybackEngine
       // - tokensCh: UI sends tokenized text to engineLoop
+      val configRef = AtomicRef.init(RsvpConfig()).now
       val commandCh = Channel.initUnscoped[Command](1).now
       val tokensCh = Channel.initUnscoped[kyo.Span[Token]](1).now
+      AppState.setConfigRef(configRef)
       AppState.setCommandChannel(commandCh)
       AppState.setTokensChannel(tokensCh)
       Console.printLine("Channels initialized, waiting for text...").now
 
       // Start the engine loop - it will wait for tokens and run playback
-      engineLoop(commandCh, tokensCh).now
+      engineLoop(commandCh, tokensCh, configRef).now
     }
   }
 
@@ -69,7 +72,8 @@ object Main extends KyoApp:
     */
   private def engineLoop(
     commandCh: Channel[Command],
-    tokensCh: Channel[kyo.Span[Token]]
+    tokensCh: Channel[kyo.Span[Token]],
+    configRef: AtomicRef[RsvpConfig]
   ): Unit < Async =
     // Wrap in Abort.run to handle channel closure (e.g., if app shuts down)
     Abort.run[Closed] {
@@ -81,7 +85,7 @@ object Main extends KyoApp:
           // Create state channel for this playback session
           // Using initUnscoped since we're inside a loop and need to manage lifetime manually
           val stateCh = Channel.initUnscoped[ViewState](1).now
-          val engine = PlaybackEngine(commandCh, stateCh, AppState.config)
+          val engine = PlaybackEngine(commandCh, stateCh, configRef)
 
           // Run engine and state consumer in parallel
           // Race ensures both stop when engine completes

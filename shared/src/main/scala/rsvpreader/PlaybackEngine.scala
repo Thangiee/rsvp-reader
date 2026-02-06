@@ -13,20 +13,20 @@ import kyo.*
   * Uses Kyo Channel for responsive command processing (pause/resume interrupts sleep).
   * Uses Kyo Loop for stack-safe, explicit state machine semantics.
   *
-  * @param commands Channel for receiving playback commands (pause/resume/back/speed)
-  * @param stateOut Channel for emitting state updates (replaces callback)
-  * @param config   RSVP timing configuration (WPM, delays, etc.)
+  * @param commands  Channel for receiving playback commands (pause/resume/back/speed)
+  * @param stateOut  Channel for emitting state updates (replaces callback)
+  * @param configRef AtomicRef to RSVP timing configuration — read each tick so changes take effect mid-playback
   */
 class PlaybackEngine(
   commands: Channel[Command],
   stateOut: Channel[ViewState],
-  config: RsvpConfig
+  configRef: AtomicRef[RsvpConfig]
 ):
   // Type alias for loop outcomes - either continue with new state or done with result
   private type Outcome = Loop.Outcome[ViewState, Unit]
 
   // Type alias for the effect stack
-  private type PlaybackEffect = Async & Abort[Closed]
+  private type PlaybackEffect = Async & Abort[Closed] & Sync
 
   // Helper to create done outcome with explicit types
   private def done: Outcome = Loop.done[ViewState, Unit](())
@@ -36,14 +36,14 @@ class PlaybackEngine(
     stateOut.put(state)
 
   def run(tokens: Span[Token]): Unit < PlaybackEffect =
-    val initial = ViewState.initial(tokens, config)
-    emit(initial).andThen {
-      val startLoop =
+    configRef.get.map { config =>
+      val initial = ViewState.initial(tokens, config)
+      emit(initial).andThen {
         if config.startDelay > Duration.Zero then
           Async.sleep(config.startDelay).andThen(playbackLoop(initial))
         else
           playbackLoop(initial)
-      startLoop
+      }
     }
 
   /** Main playback loop - iterates through tokens word-by-word.
@@ -71,20 +71,23 @@ class PlaybackEngine(
 
       case Present(token) =>
         emit(state).andThen {
-          val delay = calculateDelay(token, config.copy(baseWpm = state.wpm))
+          configRef.get.map { config =>
+            val delay = calculateDelay(token, config.copy(baseWpm = state.wpm))
 
-          Async.race(
-            Async.sleep(delay).map(_ => Absent),
-            commands.take.map(cmd => Maybe(cmd))
-          ).map {
-            case Absent =>
-              val next = state.copy(index = state.index + 1)
-              val shouldPause = config.paragraphAutoPause &&
-                token.isEndOfParagraph(next.currentToken)
-              if shouldPause then Loop.continue(next.copy(status = PlayStatus.Paused))
-              else Loop.continue(next)
-            case Present(cmd) =>
-              Loop.continue(applyCommand(cmd, state))
+            Async.race(
+              Async.sleep(delay).map(_ => Absent),
+              commands.take.map(cmd => Maybe(cmd))
+            ).map {
+              case Absent =>
+                val next = state.copy(index = state.index + 1)
+                val shouldPause = config.paragraphAutoPause &&
+                  next.currentToken.isDefined &&
+                  token.isEndOfParagraph(next.currentToken)
+                if shouldPause then Loop.continue(next.copy(status = PlayStatus.Paused))
+                else Loop.continue(next)
+              case Present(cmd) =>
+                Loop.continue(applyCommand(cmd, state))
+            }
           }
         }
 

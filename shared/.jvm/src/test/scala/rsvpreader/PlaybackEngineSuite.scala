@@ -41,6 +41,7 @@ class PlaybackEngineSuite extends FunSuite:
   class Harness(
     val commandCh: Channel[Command],
     val stateCh: Channel[ViewState],
+    val configRef: AtomicRef[RsvpConfig],
     val engine: PlaybackEngine
   ):
     def start(t: Span[Token] = tokens): Fiber[Unit, Async & Abort[Closed]] < Sync =
@@ -75,8 +76,9 @@ class PlaybackEngineSuite extends FunSuite:
       direct {
         val commandCh = Channel.init[Command](1).now
         val stateCh   = Channel.init[ViewState](stateBuffer).now
-        val engine    = PlaybackEngine(commandCh, stateCh, config)
-        Harness(commandCh, stateCh, engine)
+        val configRef = AtomicRef.init(config).now
+        val engine    = PlaybackEngine(commandCh, stateCh, configRef)
+        Harness(commandCh, stateCh, configRef, engine)
       }
 
   def runTest[A](effect: A < (Async & Abort[Closed] & Scope)): A =
@@ -244,6 +246,14 @@ class PlaybackEngineSuite extends FunSuite:
       }
     }
 
+  // Two-paragraph tokens: paragraph 0 has "hello world.", paragraph 1 has "new para."
+  val twoParagraphTokens: Span[Token] = Span.from(Seq(
+    Token("hello", 1, Punctuation.None, 0, 0),
+    Token("world.", 1, Punctuation.Paragraph, 0, 0),
+    Token("new", 0, Punctuation.None, 1, 1),
+    Token("para.", 1, Punctuation.Period, 1, 1)
+  ))
+
   test("WPM-based delay prevents instant completion"):
     // 300 WPM = 200ms per word
     val timedConfig = RsvpConfig(
@@ -271,6 +281,105 @@ class PlaybackEngineSuite extends FunSuite:
           fiber.get.now
           val states = h.collectUntilStopped.now
           assert(!isDoneBefore, "Should not be done before 200ms delay elapses")
+          assertEquals(states.last.status, PlayStatus.Stopped)
+        }
+      }
+    }
+
+  // -- Dynamic config tests (AtomicRef mutation mid-playback) --
+
+  test("enabling paragraphAutoPause mid-playback causes pause at paragraph boundary"):
+    runTest {
+      direct {
+        // Start with paragraphAutoPause=false, fast config
+        val h     = Harness.init(fastConfig).now
+        val fiber = h.start(twoParagraphTokens).now
+        h.send(Command.Resume).now
+        Async.sleep(5.millis).now
+
+        // Enable paragraphAutoPause while playing
+        h.configRef.set(fastConfig.copy(paragraphAutoPause = true)).now
+        Async.sleep(50.millis).now
+
+        // Engine should have auto-paused at the paragraph boundary
+        val states = h.drainAvailable.now
+        // Last emitted Playing state should be at idx=1 ("world.") — engine paused before idx=2
+        val playingIndices = states.filter(_.status == PlayStatus.Playing).map(_.index)
+        assert(playingIndices.nonEmpty && playingIndices.max <= 1,
+          s"Expected engine to pause at paragraph boundary (idx <= 1), got playing indices: $playingIndices")
+
+        // Resume to finish
+        h.send(Command.Resume).now
+        fiber.get.now
+        val finalStates = h.collectUntilStopped.now
+        assertEquals(finalStates.last.status, PlayStatus.Stopped)
+      }
+    }
+
+  test("disabling paragraphAutoPause mid-playback skips paragraph pause"):
+    runTest {
+      direct {
+        // Start with paragraphAutoPause=true, fast config
+        val configWithAutoPause = fastConfig.copy(paragraphAutoPause = true)
+        val h     = Harness.init(configWithAutoPause).now
+        val fiber = h.start(twoParagraphTokens).now
+        h.send(Command.Resume).now
+        Async.sleep(5.millis).now
+
+        // Disable paragraphAutoPause while playing
+        h.configRef.set(fastConfig.copy(paragraphAutoPause = false)).now
+
+        // Engine should run to completion without pausing at paragraph boundary
+        fiber.get.now
+        val states = h.collectUntilStopped.now
+
+        // Should only see the initial Paused state (from start), no mid-playback pause
+        val pausedAfterStart = states.drop(1).filter(_.status == PlayStatus.Paused)
+        assertEquals(pausedAfterStart.length, 0,
+          s"Expected no auto-pause after disabling, got: ${states.map(s => (s.index, s.status))}")
+      }
+    }
+
+  test("changing periodDelay mid-playback affects subsequent token timing"):
+    runTest {
+      Clock.withTimeControl { control =>
+        direct {
+          // Start with 200ms period delay, fast base WPM
+          val slowPeriodConfig = RsvpConfig(
+            baseWpm = Int.MaxValue,
+            startDelay = Duration.Zero,
+            commaDelay = Duration.Zero,
+            periodDelay = 200.millis,
+            paragraphDelay = Duration.Zero,
+            wordLengthEnabled = false
+          )
+          val periodToken = Span.from(Seq(
+            Token("end.", 1, Punctuation.Period, 0, 0),
+            Token("next", 1, Punctuation.None, 1, 0)
+          ))
+          val h     = Harness.init(slowPeriodConfig).now
+          val fiber = h.start(periodToken).now
+          h.send(Command.Resume).now
+          tick.now
+
+          // Advance 150ms — should NOT be done (period delay is 200ms)
+          control.advance(150.millis).now
+          tick.now
+          val doneAt150 = fiber.done.now
+          assert(!doneAt150, "Should not be done at 150ms with 200ms period delay")
+
+          // Now change period delay to 0ms
+          h.configRef.set(slowPeriodConfig.copy(periodDelay = Duration.Zero)).now
+
+          // Advance enough to finish with the old pending sleep
+          control.advance(100.millis).now
+          tick.now
+          // Advance a bit more for the second token (near-zero delay)
+          control.advance(50.millis).now
+          tick.now
+          advanceUntilDone(control, fiber).now
+
+          val states = h.collectUntilStopped.now
           assertEquals(states.last.status, PlayStatus.Stopped)
         }
       }

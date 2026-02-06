@@ -27,11 +27,13 @@ object AppState:
   val currentCenterMode: LaminarVar[CenterMode] = LaminarVar(CenterMode.ORP)
   val capturingKeyFor: LaminarVar[Option[KeyAction]] = LaminarVar(None)
 
-  val config: RsvpConfig = RsvpConfig()
-
-  // Channel references - set by Main during initialization
+  // Config and channel references - set by Main during initialization
+  private var _configRef: Result[String, AtomicRef[RsvpConfig]] = Result.fail("Config ref not initialized")
   private var _commandChannel: Result[String, Channel[Command]] = Result.fail("Command channel not initialized")
   private var _tokensChannel: Result[String, Channel[Span[Token]]] = Result.fail("Tokens channel not initialized")
+
+  def setConfigRef(ref: AtomicRef[RsvpConfig]): Unit =
+    _configRef = Result.succeed(ref)
 
   def setCommandChannel(ch: Channel[Command]): Unit =
     _commandChannel = Result.succeed(ch)
@@ -51,6 +53,14 @@ object AppState:
   def getTokensChannel: Channel[Span[Token]] < Abort[String] =
     _tokensChannel.fold(
       onSuccess = ch => ch,
+      onFailure = err => Abort.fail(err),
+      onPanic = ex => Abort.fail(ex.getMessage)
+    )
+
+  /** Returns the config ref, or fails with Abort if not initialized. */
+  def getConfigRef: AtomicRef[RsvpConfig] < Abort[String] =
+    _configRef.fold(
+      onSuccess = ref => ref,
       onFailure = err => Abort.fail(err),
       onPanic = ex => Abort.fail(ex.getMessage)
     )
