@@ -19,6 +19,7 @@ object Layout:
 
   def readingTheater: HtmlElement = div(
     cls := "reading-theater",
+    div(cls := "theater-spacer"),
     div(
       cls <-- AppState.focusContainerCls,
       div(cls := "orp-guides"),
@@ -35,6 +36,7 @@ object Layout:
   )
 
   def app(onTextLoaded: String => Unit)(using AllowUnsafe): HtmlElement = div(
+    cls := "app-root",
     header,
     readingTheater,
     controlsDock,

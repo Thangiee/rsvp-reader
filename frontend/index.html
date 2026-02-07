@@ -63,8 +63,12 @@
       }
 
       #app {
-        display: flex;
-        flex-direction: column;
+        height: 100%;
+      }
+
+      .app-root {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
         height: 100%;
         position: relative;
       }
@@ -94,13 +98,17 @@
 
       /* Main reading area */
       .reading-theater {
-        flex: 1;
+        min-height: 0;
         display: flex;
         flex-direction: column;
-        justify-content: center;
         align-items: center;
         padding: 2rem;
         position: relative;
+        overflow: hidden;
+      }
+
+      .theater-spacer {
+        flex: 1;
       }
 
       /* Focus area - the spotlight */
@@ -201,7 +209,11 @@
         width: 100%;
         line-height: 1.6;
         padding: 0 1rem;
-        min-height: 2rem;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        -webkit-mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+        mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
       }
 
       .sentence-word {
