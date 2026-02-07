@@ -1,81 +1,76 @@
 package rsvpreader.ui
 
-import com.raquo.laminar.api.L.*
+import com.raquo.laminar.api.L.{Var as LaminarVar, Signal as LaminarSignal, *}
 import org.scalajs.dom
 import kyo.*
 import rsvpreader.*
+import rsvpreader.state.*
+import rsvpreader.viewmodel.*
 
 /** Reusable UI components for the RSVP reader. */
 object Components:
 
-  def playPauseButton(using AllowUnsafe): HtmlElement = button(
-    cls <-- AppState.viewState.signal.map { s =>
+  def playPauseButton(domain: DomainContext): HtmlElement = button(
+    cls <-- domain.model.map { m =>
       val base = "control-btn large"
-      s.status match
+      m.viewState.status match
         case PlayStatus.Playing => s"$base playing"
         case _                  => s"$base primary"
     },
-    child.text <-- AppState.viewState.signal.map { s =>
-      s.status match
-        case PlayStatus.Playing  => "⏸"
-        case PlayStatus.Finished => "⟳"
-        case _                   => "▶"
+    child.text <-- domain.model.map { m =>
+      m.viewState.status match
+        case PlayStatus.Playing  => "\u23f8"
+        case PlayStatus.Finished => "\u27f3"
+        case _                   => "\u25b6"
     },
-    onClick --> (_ => AppState.togglePlayPause())
+    onClick --> (_ => domain.togglePlayPause())
   )
 
-  def speedControls(using AllowUnsafe): HtmlElement = div(
+  def speedControls(domain: DomainContext): HtmlElement = div(
     cls := "speed-control",
     button(
       cls := "control-btn small",
-      "−",
-      onClick --> (_ => AppState.adjustSpeed(-50))
+      "\u2212",
+      onClick --> (_ => domain.adjustSpeed(-50))
     ),
     div(
       cls := "speed-display",
-      child <-- AppState.viewState.signal.map(s => span(s"${s.wpm}")),
+      child <-- domain.model.map(m => span(s"${m.viewState.wpm}")),
       " wpm"
     ),
     button(
       cls := "control-btn small",
       "+",
-      onClick --> (_ => AppState.adjustSpeed(50))
+      onClick --> (_ => domain.adjustSpeed(50))
     )
   )
 
-  def focusWord: HtmlElement = div(
+  def focusWord(domain: DomainContext): HtmlElement = div(
     cls := "focus-area",
-    child <-- AppState.viewState.signal.map { s =>
+    child <-- domain.model.map { m =>
+      val s = m.viewState
       s.currentToken match
         case Absent => span(cls := "focus-placeholder", "READY TO READ")
         case Present(token) =>
           if s.status == PlayStatus.Paused || s.status == PlayStatus.Finished then
             pauseTextView(s)
           else
-            orpWordView(token, s.index)
+            orpWordView(OrpLayout.compute(token, m.centerMode))
     }
   )
 
-  private def orpWordView(token: Token, index: Int): HtmlElement =
-    val text = token.text
-    val centerMode = AppState.currentCenterMode.now()
-    val halfLen = text.length / 2.0
-    val (focus, offset) = centerMode match
-      case CenterMode.ORP   => (token.focusIndex, -halfLen + .5 + token.focusIndex)
-      case CenterMode.First => (0, -halfLen + .5)
-      case CenterMode.None  => (-1, 0.0)
-
+  private def orpWordView(layout: OrpLayout): HtmlElement =
     span(
       cls := "orp-word",
-      styleAttr := s"--orp-offset: $offset",
-      if focus >= 0 then
+      styleAttr := s"--orp-offset: ${layout.offset}",
+      if layout.focus.nonEmpty then
         div(
-          span(cls := "orp-before", text.take(focus)),
-          span(cls := "orp-focus", text.lift(focus).fold("")(_.toString)),
-          span(cls := "orp-after", text.drop(focus + 1) + token.punctuation.text)
+          span(cls := "orp-before", layout.before),
+          span(cls := "orp-focus", layout.focus),
+          span(cls := "orp-after", layout.after)
         )
       else
-        span(cls := "orp-before", text + token.punctuation.text)
+        span(cls := "orp-before", layout.before)
     )
 
   private def pauseTextView(s: ViewState): HtmlElement =
@@ -116,132 +111,107 @@ object Components:
       }
     )
 
-  def sentenceContext: HtmlElement = div(
-    cls <-- AppState.viewState.signal.map { s =>
+  def sentenceContext(domain: DomainContext): HtmlElement = div(
+    cls <-- domain.model.map { m =>
       val base = "sentence-context"
-      if s.status == PlayStatus.Paused || s.status == PlayStatus.Finished then s"$base hidden" else base
+      if m.viewState.status == PlayStatus.Paused || m.viewState.status == PlayStatus.Finished then s"$base hidden" else base
     },
-    children <-- AppState.viewState.signal.combineWith(AppState.contextSentences.signal).map { (s, numSentences) =>
+    children <-- domain.model.map { m =>
+      val s = m.viewState
       if s.tokens.isEmpty || s.status == PlayStatus.Paused || s.status == PlayStatus.Finished then Seq.empty
       else
-        val currentSentenceIdx = s.currentToken.fold(-1)(_.sentenceIndex)
-        val currentParagraphIdx = s.currentToken.fold(-1)(_.paragraphIndex)
-        if currentSentenceIdx < 0 then Seq.empty
-        else
-          // Filter to current paragraph
-          val paraTokenIndices = (0 until s.tokens.length).filter(i => s.tokens(i).paragraphIndex == currentParagraphIdx)
-          if paraTokenIndices.isEmpty then Seq.empty
-          else
-            // Find the first sentence index in this paragraph for relative paging
-            val firstSentenceInPara = s.tokens(paraTokenIndices.head).sentenceIndex
-            val relativeSentence = currentSentenceIdx - firstSentenceInPara
-            val page = relativeSentence / numSentences
-            val minSentence = firstSentenceInPara + page * numSentences
-            val maxSentence = minSentence + numSentences - 1
-
-            paraTokenIndices
-              .filter { i =>
-                val si = s.tokens(i).sentenceIndex
-                si >= minSentence && si <= maxSentence
-              }
-              .map { i =>
-                val token = s.tokens(i)
-                val isCurrent = i == s.index
-                val isCurrentSentence = token.sentenceIndex == currentSentenceIdx
-                val cls0 = if isCurrent then "sentence-word current"
-                            else if !isCurrentSentence then "sentence-word dim"
-                            else "sentence-word"
-                span(
-                  cls := cls0,
-                  s"${token.text}${token.punctuation.text}",
-                  " "
-                )
-              }
+        SentenceWindow.compute(s.tokens, s.index, m.contextSentences).map { wd =>
+          span(
+            cls := wd.cssClass,
+            wd.text,
+            " "
+          )
+        }
     }
   )
 
-  def progressBar: HtmlElement = div(
+  def progressBar(domain: DomainContext): HtmlElement = div(
     cls := "progress-container",
     div(
       cls := "progress-bar",
       div(
         cls := "progress-fill",
-        styleAttr <-- AppState.progressPercent.map(p => s"width: $p%")
+        styleAttr <-- domain.model.map(m => s"width: ${DomainModel.progressPercent(m)}%")
       )
     ),
     div(
       cls := "progress-stats",
-      span(child.text <-- AppState.wordProgress),
-      span(child.text <-- AppState.timeRemaining)
+      span(child.text <-- domain.model.map(DomainModel.wordProgress)),
+      span(child.text <-- domain.model.map(DomainModel.timeRemaining))
     )
   )
 
-  def primaryControls(using AllowUnsafe): HtmlElement = div(
+  def primaryControls(domain: DomainContext): HtmlElement = div(
     cls := "primary-controls",
     button(
       cls := "control-btn medium",
-      "¶",
+      "\u00b6",
       title := "Restart paragraph",
-      onClick --> (_ => AppState.sendCommand(Command.RestartParagraph))
+      onClick --> (_ => domain.sendCommand(Command.RestartParagraph))
     ),
     button(
       cls := "control-btn medium",
-      "↩",
+      "\u21a9",
       title := "Restart sentence",
-      onClick --> (_ => AppState.sendCommand(Command.RestartSentence))
+      onClick --> (_ => domain.sendCommand(Command.RestartSentence))
     ),
-    playPauseButton,
-    speedControls
+    playPauseButton(domain),
+    speedControls(domain)
   )
 
-  def secondaryControls(using AllowUnsafe): HtmlElement = div(
+  def secondaryControls(domain: DomainContext, ui: UiState): HtmlElement = div(
     cls := "secondary-controls",
     button(
       cls := "control-chip",
-      span(cls := "icon", "📝"),
+      span(cls := "icon", "\ud83d\udcdd"),
       "Load Text",
-      onClick --> (_ => AppState.showTextInputModal.set(true))
+      onClick --> (_ => ui.showTextInputModal.set(true))
     ),
     button(
       cls := "control-chip",
-      span(cls := "icon", "⚙"),
+      span(cls := "icon", "\u2699"),
       "Settings",
-      onClick --> (_ => AppState.showSettingsModal.set(true))
+      onClick --> (_ => ui.showSettingsModal.set(true))
     )
   )
 
-  def keyboardHandler(using AllowUnsafe): Modifier[HtmlElement] =
-    onKeyDown --> { event =>
-      AppState.capturingKeyFor.now() match
+  def keyboardHandler(domain: DomainContext, ui: UiState): Modifier[HtmlElement] =
+    onKeyDown.compose(_.withCurrentValueOf(domain.model)) --> { (event, model) =>
+      ui.capturingKeyFor.now() match
         case Some(action) =>
           // Capture the key for remapping
           event.preventDefault()
-          val updated = AppState.currentKeyBindings.now().withBinding(action, event.key)
-          AppState.currentKeyBindings.set(updated)
-          AppState.capturingKeyFor.set(None)
-          AppState.saveSettings()
+          domain.dispatch(Action.UpdateKeyBinding(action, event.key))
+          ui.capturingKeyFor.set(None)
         case None =>
-          if !AppState.showSettingsModal.now() && !AppState.showTextInputModal.now() then
-            val bindings = AppState.currentKeyBindings.now()
-            bindings.actionFor(event.key).foreach { action =>
-              action match
-                case KeyAction.PlayPause =>
-                  event.preventDefault()
-                  AppState.togglePlayPause()
-                case KeyAction.RestartSentence =>
-                  AppState.sendCommand(Command.RestartSentence)
-                case KeyAction.RestartParagraph =>
-                  AppState.sendCommand(Command.RestartParagraph)
-                case KeyAction.SpeedUp =>
-                  AppState.adjustSpeed(50)
-                case KeyAction.SpeedDown =>
-                  AppState.adjustSpeed(-50)
-            }
+          val modalsOpen = ui.showSettingsModal.now() || ui.showTextInputModal.now()
+          val capturing = ui.capturingKeyFor.now().isDefined
+          val bindings = model.keyBindings
+          KeyDispatch.resolve(event.key, bindings, modalsOpen, capturing).foreach { action =>
+            action match
+              case KeyAction.PlayPause =>
+                event.preventDefault()
+                domain.togglePlayPause()
+              case KeyAction.RestartSentence =>
+                domain.sendCommand(Command.RestartSentence)
+              case KeyAction.RestartParagraph =>
+                domain.sendCommand(Command.RestartParagraph)
+              case KeyAction.SpeedUp =>
+                domain.adjustSpeed(50)
+              case KeyAction.SpeedDown =>
+                domain.adjustSpeed(-50)
+          }
     }
 
-  def keyboardHints: HtmlElement = div(
+  def keyboardHints(domain: DomainContext): HtmlElement = div(
     cls := "keyboard-hints",
-    children <-- AppState.currentKeyBindings.signal.map { bindings =>
+    children <-- domain.model.map { m =>
+      val bindings = m.keyBindings
       Seq(
         keyHint(bindings.keyFor(KeyAction.PlayPause), "Play/Pause"),
         keyHint(bindings.keyFor(KeyAction.RestartSentence), "Sentence"),
@@ -256,8 +226,8 @@ object Components:
     labelText
   )
 
-  def textInputModal(onStart: String => Unit)(using AllowUnsafe): HtmlElement = div(
-    cls <-- AppState.showTextInputModal.signal.map { show =>
+  def textInputModal(domain: DomainContext, ui: UiState, onStart: String => Unit): HtmlElement = div(
+    cls <-- ui.showTextInputModal.signal.map { show =>
       if show then "text-input-modal visible" else "text-input-modal"
     },
     div(
@@ -267,12 +237,12 @@ object Components:
         cls := "text-input-area",
         placeholder := "Paste or type your text here...",
         controlled(
-          value <-- AppState.inputText.signal,
-          onInput.mapToValue --> AppState.inputText.writer
+          value <-- ui.inputText.signal,
+          onInput.mapToValue --> ui.inputText.writer
         ),
-        onInput --> (_ => AppState.loadError.set(None))
+        onInput --> (_ => ui.loadError.set(None))
       ),
-      child.maybe <-- AppState.loadError.signal.map {
+      child.maybe <-- ui.loadError.signal.map {
         case Some(msg) => Some(div(
           cls := "load-error",
           msg
@@ -283,12 +253,11 @@ object Components:
         cls := "start-reading-btn",
         "Start Reading",
         onClick --> { _ =>
-          val text = AppState.inputText.now()
+          val text = ui.inputText.now()
           if text.trim.nonEmpty then
             onStart(text)
-            if AppState.loadError.now().isEmpty then
-              AppState.showTextInputModal.set(false)
-              AppState.saveSettings()
+            if ui.loadError.now().isEmpty then
+              ui.showTextInputModal.set(false)
         }
       )
     )

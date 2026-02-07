@@ -2,48 +2,48 @@ package rsvpreader.ui
 
 import com.raquo.laminar.api.L.*
 import org.scalajs.dom
-import kyo.*
+import rsvpreader.state.*
 
 /** Top-level layout composition for the RSVP reader app. */
 object Layout:
 
-  def header: HtmlElement = div(
+  def header(domain: DomainContext): HtmlElement = div(
     cls := "header",
     div(cls := "logo", "RSVP ", span("Reader")),
     div(
       cls := "status-indicator",
-      div(cls <-- AppState.statusDotCls),
-      child.text <-- AppState.statusText
+      div(cls <-- domain.model.map(DomainModel.statusDotCls)),
+      child.text <-- domain.model.map(DomainModel.statusText)
     )
   )
 
-  def readingTheater: HtmlElement = div(
+  def readingTheater(domain: DomainContext): HtmlElement = div(
     cls := "reading-theater",
     div(cls := "theater-spacer"),
     div(
-      cls <-- AppState.focusContainerCls,
+      cls <-- domain.model.map(DomainModel.focusContainerCls),
       div(cls := "orp-guides"),
-      Components.focusWord
+      Components.focusWord(domain)
     ),
-    Components.sentenceContext,
-    Components.progressBar
+    Components.sentenceContext(domain),
+    Components.progressBar(domain)
   )
 
-  def controlsDock(using AllowUnsafe): HtmlElement = div(
+  def controlsDock(domain: DomainContext, ui: UiState): HtmlElement = div(
     cls := "controls-dock",
-    Components.primaryControls,
-    Components.secondaryControls
+    Components.primaryControls(domain),
+    Components.secondaryControls(domain, ui)
   )
 
-  def app(onTextLoaded: String => Unit)(using AllowUnsafe): HtmlElement = div(
+  def app(domain: DomainContext, ui: UiState, onTextLoaded: String => Unit): HtmlElement = div(
     cls := "app-root",
-    header,
-    readingTheater,
-    controlsDock,
-    Components.textInputModal(onTextLoaded),
-    Settings.modal,
-    Components.keyboardHints,
-    Components.keyboardHandler,
+    header(domain),
+    readingTheater(domain),
+    controlsDock(domain, ui),
+    Components.textInputModal(domain, ui, onTextLoaded),
+    Settings.modal(domain, ui),
+    Components.keyboardHints(domain),
+    Components.keyboardHandler(domain, ui),
     tabIndex := 0,
     onMountCallback { ctx =>
       ctx.thisNode.ref.asInstanceOf[dom.html.Element].focus()
