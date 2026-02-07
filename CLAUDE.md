@@ -50,28 +50,39 @@ shared (JVM + JS)  ←── backend (JVM only)
 
 ### Module Responsibilities
 
-**shared/** — Platform-independent RSVP domain types:
-- `Token` — word with ORP focus index, punctuation, sentence/paragraph indices
-- `Tokenizer` — parses text into `Span[Token]`, calculates ORP at ~1/3 of word length
-- `Command` — playback commands (Pause, Resume, RestartSentence, RestartParagraph, SetSpeed)
-- `RsvpConfig` — timing configuration (WPM, delays for punctuation/paragraphs)
-- `calculateDelay` — computes display duration based on word length and punctuation
+**shared/** — Platform-independent RSVP domain types and logic:
+- `Token`, `Tokenizer` — word units with ORP index, punctuation, sentence/paragraph indices
+- `Command`, `PlaybackEngine`, `ViewState` — playback loop with async command handling
+- `RsvpConfig`, `Delay` — timing configuration and delay calculation
+- `viewmodel/` — pure view model computations (OrpLayout, SentenceWindow, KeyDispatch)
+- `state/` — domain model, actions, reducer, persistence trait (`DomainModel`, `Action`, `Reducer`, `Persistence`)
 
 **backend/** — Kyo `KyoApp` serving static assets via Tapir routes
 
 **frontend/** — Laminar UI with Kyo async playback:
-- `PlaybackEngine` — async loop using `Async.race(sleep, channel.take)` for responsive pause
-- `ViewState` — immutable snapshot for UI rendering
-- `ui/AppState` — centralized reactive state with `LaminarVar`, command dispatch
-- `ui/Components` — reusable UI elements (buttons, progress bar, focus word display)
+- `Main` — KyoApp entry point: state manager fiber, engine loop, channel wiring
+- `LocalStoragePersistence` — browser localStorage impl of `Persistence` trait
+- `ui/DomainContext` — read-only domain state signal + dispatch/command closures
+- `ui/UiState` — transient UI-only state (modals, input text, capturing key)
+- `ui/Components` — reusable UI elements using view models from shared/
 - `ui/Layout` — page structure composition
+- `ui/Settings` — settings modal dispatching `Action` variants
+
+### State Management
+
+State is split into two categories:
+- **DomainModel** — playback state, settings (centerMode, keyBindings, contextSentences). Flows through `actionCh → Reducer → modelVar`. Pure reducer function, testable on JVM.
+- **UiState** — transient UI concerns (modal visibility, input text, key capture). Plain `LaminarVar` instances, synchronous.
+
+Components receive `DomainContext` (read-only signal + dispatch) and `UiState` as explicit parameters. No global mutable state.
 
 ### Key Data Flow
 
 1. `Tokenizer.tokenize(text)` produces `Span[Token]` with pre-computed ORP indices
-2. `PlaybackEngine.run(tokens)` starts async loop, notifies UI via callback
-3. UI sends commands through `Channel[Command]` (capacity 1, bounded)
-4. `Async.race` between sleep and channel take enables instant response to pause/resume
+2. `PlaybackEngine.run(tokens)` emits `ViewState` snapshots to a state channel
+3. State consumer fiber dispatches `Action.EngineStateUpdate` → reducer → `modelVar`
+4. UI sends commands through `Channel[Command]` (capacity 1, bounded)
+5. `Async.race` between sleep and channel take enables instant response to pause/resume
 
 ## Kyo Patterns
 

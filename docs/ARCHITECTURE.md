@@ -29,19 +29,59 @@ rsvp-reader/
 │       ├── Delay.scala            # calculateDelay(token, config) → Duration
 │       ├── PlaybackEngine.scala   # Async playback loop with command handling
 │       ├── CenterMode.scala       # Enum: ORP, First, None
-│       └── KeyBindings.scala      # Customizable keyboard shortcut map
+│       ├── KeyBindings.scala      # Customizable keyboard shortcut map
+│       ├── viewmodel/
+│       │   ├── OrpLayout.scala    # Pure ORP offset/split computation
+│       │   ├── WordDisplay.scala  # Word with CSS class and current flag
+│       │   ├── SentenceWindow.scala # Sentence context paging logic
+│       │   └── KeyDispatch.scala  # Key → action resolution (modal/capture aware)
+│       └── state/
+│           ├── DomainModel.scala  # App state record + derived computations
+│           ├── Action.scala       # Enum: all state transitions
+│           ├── Reducer.scala      # Pure (DomainModel, Action) → DomainModel
+│           └── Persistence.scala  # Trait + InMemoryPersistence for tests
 ├── backend/
 │   └── src/main/scala/rsvpreader/
 │       └── Main.scala             # KyoApp serving static files via Tapir
 └── frontend/
     └── src/main/scala/rsvpreader/
-        ├── Main.scala             # KyoApp entry point — engine loop + DOM wiring
+        ├── Main.scala             # KyoApp entry point — state manager + engine loop + DOM wiring
+        ├── LocalStoragePersistence.scala  # Browser localStorage Persistence impl
         └── ui/
-            ├── AppState.scala     # Centralized reactive state (LaminarVar) + command dispatch
-            ├── Components.scala   # Reusable UI elements (buttons, focus word, progress bar)
+            ├── DomainContext.scala # Read-only domain signal + dispatch/command closures
+            ├── UiState.scala      # Transient UI state (modals, input text, key capture)
+            ├── Components.scala   # UI elements using shared view models
             ├── Layout.scala       # Page structure composition
-            └── Settings.scala     # Settings modal (keybindings, center mode)
+            └── Settings.scala     # Settings modal dispatching Actions
 ```
+
+## State Management
+
+### Two State Categories
+
+**DomainModel** — persisted, reduced state:
+- `viewState: ViewState` — current playback snapshot (driven by engine)
+- `centerMode: CenterMode` — ORP/First/None alignment
+- `keyBindings: KeyBindings` — customizable shortcuts
+- `contextSentences: Int` — sentence context window size
+
+Flows through: `Action → actionCh → state manager fiber → Reducer → modelVar`
+
+**UiState** — transient, synchronous state:
+- `showTextInputModal`, `showSettingsModal` — modal visibility
+- `inputText` — text area content
+- `loadError` — tokenization error
+- `capturingKeyFor` — which key binding is being captured
+
+Plain `LaminarVar` instances, no channels or reducer.
+
+### Dependency Passing
+
+Components receive explicit parameters instead of accessing globals:
+- `DomainContext` — `model: Signal[DomainModel]`, `dispatch: Action => Unit`, `sendCommand`, `togglePlayPause`, `adjustSpeed`
+- `UiState` — plain case class with `LaminarVar` fields
+
+No global mutable state. `DomainContext` is created once in `Main` and threaded to all components.
 
 ## Data Flow
 
@@ -69,6 +109,7 @@ Lives in `frontend/Main.scala`. Runs inside `KyoApp.run { }` where Kyo async eff
 KyoApp.run {
   direct {
     init configRef, commandCh, tokensCh
+    Fiber.init(stateManagerLoop)        [state manager fiber in background]
     engineLoop:
       Loop forever:
         tokens ← tokensCh.take          [blocks until user loads text]
@@ -114,36 +155,41 @@ run(tokens):
 ### 4. State Updates → UI
 
 ```
-PlaybackEngine                     frontend/Main.scala              Laminar UI
-──────────────                     ───────────────────              ──────────
-stateOut.put(ViewState) ──→ stateCh ──→ stateConsumerLoop ──→ AppState.viewState.set(state)
-                                                                     │
-                                                              viewState.signal ──→ reactive DOM
+PlaybackEngine               stateConsumerLoop            State Manager Fiber        Laminar UI
+──────────────               ─────────────────            ───────────────────        ──────────
+stateCh.put(ViewState) ──→ Action.EngineStateUpdate ──→ actionCh ──→ Reducer ──→ modelVar.set(newModel)
+                                                                                       │
+                                                                                model.signal ──→ reactive DOM
 ```
 
-The `stateConsumerLoop` runs as a background fiber. When the engine finishes, `stateCh.close` ensures any buffered final state (like Finished) reaches the UI and signals the consumer to exit via `Abort[Closed]`.
+The state manager fiber (`stateManagerLoop`) is the single writer to `modelVar`. It:
+1. Takes `Action` from `actionCh`
+2. Applies `Reducer(model, action)` — pure function
+3. Sets `modelVar` — single write point
+4. Side effects: forwards `PlaybackCmd` to `commandCh`, persists settings changes via `Persistence`
 
 ### 5. Commands (UI → Engine)
 
 ```
 User clicks button / presses key
-  → AppState.sendCommand(cmd)        [unsafe.offer — non-blocking]
+  → domain.sendCommand(cmd)             [unsafe.offer — non-blocking]
     → commandCh ──→ PlaybackEngine picks up in Async.race or handlePaused
 ```
 
-All command dispatch goes through `AppState.sendCommand` which uses `Channel.unsafe.offer`. This is non-blocking and returns `false` if the channel is full (capacity 1), silently dropping the command. This is acceptable because the engine consumes commands quickly.
+Command dispatch uses `Channel.unsafe.offer` (non-blocking, drops if full). This is acceptable because the engine consumes commands quickly.
 
-`togglePlayPause()` checks `viewState.now().status` to decide whether to send `Pause` or `Resume`. When status is `Finished`, it re-sends the current tokens through `tokensCh` to start a fresh playback session from the beginning.
+`togglePlayPause()` checks `modelVar.now().viewState.status` to decide whether to send `Pause` or `Resume`. When status is `Finished`, it re-sends the current tokens through `tokensCh` to start a fresh playback session.
 
-## Channels (Capacity 1, All Unscoped)
+## Channels
 
-| Channel | Direction | Purpose |
-|---------|-----------|---------|
-| `tokensCh: Channel[Span[Token]]` | UI → Engine Loop | Sends tokenized text to start playback |
-| `commandCh: Channel[Command]` | UI → PlaybackEngine | Sends pause/resume/back/speed commands |
-| `stateCh: Channel[ViewState]` | PlaybackEngine → UI | Emits state snapshots for reactive rendering |
+| Channel | Capacity | Direction | Purpose |
+|---------|----------|-----------|---------|
+| `actionCh: Channel[Action]` | 8 | Components → State Manager | All state transitions |
+| `commandCh: Channel[Command]` | 1 | State Manager → PlaybackEngine | Playback commands |
+| `tokensCh: Channel[Span[Token]]` | 1 | UI → Engine Loop | Sends tokenized text |
+| `stateCh: Channel[ViewState]` | 1 | PlaybackEngine → Consumer | State snapshots (per session) |
 
-All created with `Channel.initUnscoped` to avoid being closed when `KyoApp.run`'s scope ends. `stateCh` is created per-playback session and closed explicitly after the engine finishes.
+`actionCh`, `commandCh`, `tokensCh` are created outside `run` via `Channel.Unsafe.init[T](n).safe`. `stateCh` is created per playback session inside `engineLoop` and closed explicitly after the engine finishes.
 
 ## Shared Config via AtomicRef
 
@@ -151,24 +197,29 @@ All created with `Channel.initUnscoped` to avoid being closed when `KyoApp.run`'
 
 **Gotcha:** `AtomicRef.init(v)` returns `AtomicRef[T] < Sync` (effectful). `AtomicRef#get` returns `T < Sync` — not pure.
 
+## Pure View Models (shared/viewmodel/)
+
+Computation extracted from frontend Components into testable pure functions:
+
+| View Model | Purpose | Replaces |
+|------------|---------|----------|
+| `OrpLayout.compute(token, centerMode)` | ORP offset/split for focus word | Inline math in Components.orpWordView |
+| `SentenceWindow.compute(tokens, index, n)` | Sentence context paging | 30+ lines in Components.sentenceContext |
+| `KeyDispatch.resolve(key, bindings, modals, capturing)` | Key → action mapping | Inline logic in Components.keyboardHandler |
+
+All are pure functions taking domain types, returning value objects. Tested on JVM with MUnit.
+
 ## UI Layer (Laminar)
 
-**Reactive state** is in `AppState` using `LaminarVar[T]`:
-- `viewState` — current playback snapshot (driven by engine via state channel)
-- `showParagraphView`, `showTextInputModal`, `showSettingsModal` — modal visibility
-- `currentKeyBindings`, `currentCenterMode` — persisted to localStorage
+**Components** are pure Laminar elements that receive `DomainContext` and `UiState` as parameters. They bind to `domain.model` signal for reactive rendering and call `domain.dispatch`, `domain.sendCommand`, etc. for user interactions.
 
-**Derived signals** in `AppState`:
-- `progressPercent`, `timeRemaining`, `wordProgress` — computed from viewState
-- `focusContainerCls`, `statusDotCls`, `statusText` — CSS class bindings
-
-**Components** are pure Laminar elements that bind to signals. The focus word display switches between:
+The focus word display switches between:
 - **Playing:** Single word with ORP highlighting (before/focus/after spans) + sentence context below
 - **Paused:** Scrollable full-text view with current word highlighted, sentence context hidden
 - **Finished:** Same as Paused — full-text view with last word highlighted. Pressing play restarts from beginning.
 - **Paused (no tokens):** "READY TO READ" placeholder
 
-**Keyboard handling:** `Components.keyboardHandler` maps key presses to actions via configurable `KeyBindings`. Guards against capturing when settings modal is open.
+**Keyboard handling:** `Components.keyboardHandler` uses `KeyDispatch.resolve` from shared/ to map key presses to actions. Guards against capturing when settings modal is open.
 
 **Import disambiguation:** Laminar's `Var`, `Signal`, `Span` collide with Kyo's. The frontend uses:
 ```scala
@@ -184,16 +235,46 @@ import com.raquo.laminar.api.L.{Var as LaminarVar, Signal as LaminarSignal, Span
 | `Channel` (capacity 1) | Everywhere | Backpressured communication between fibers |
 | `Channel.close` | engineLoop | Clean shutdown + flush remaining states |
 | `AtomicRef` | Config sharing | Lock-free concurrent config reads |
-| `Fiber.init` + `Abort.run[Closed]` | engineLoop consumer | Background fiber with clean exit on channel close |
-| `Loop(state) { ... continue/done }` | PlaybackEngine, engineLoop | Stack-safe state machine loops |
+| `Fiber.init` + `Abort.run[Closed]` | engineLoop, stateManagerLoop | Background fibers with clean exit on channel close |
+| `Loop(state) { ... continue/done }` | PlaybackEngine, engineLoop, stateManagerLoop | Stack-safe state machine loops |
 | `KyoApp.run { }` | Main entry point | Bootstrap Kyo runtime (handles Async, Sync, Scope, etc.) |
+| `Channel.Unsafe.init[T](n).safe` | Main bootstrap | Create channels outside `run` block for DOM callback access |
 | `AllowUnsafe.embrace.danger` | Frontend Main | Required for `unsafe.offer` from DOM callbacks |
+
+## Persistence
+
+`Persistence` trait (in shared/) defines load/save operations with `Sync` effect:
+
+```scala
+trait Persistence:
+  def load: DomainModel < Sync
+  def save(model: DomainModel): Unit < Sync
+  def savePosition(textHash: Int, index: Int): Unit < Sync
+  def loadPosition: Option[(Int, Int)] < Sync
+```
+
+Implementations:
+- `LocalStoragePersistence` (frontend/) — browser localStorage, reads/writes JSON-like key-value pairs
+- `InMemoryPersistence` (shared/) — `mutable.Map`-backed, used in tests
+
+The state manager fiber calls `persistence.save(model)` for settings changes. Position is saved on pause, playback finish, and `beforeunload`.
 
 ## Testing
 
-Tests live in `shared/.jvm/src/test/scala/rsvpreader/PlaybackEngineSuite.scala` and use a `Harness` that wires up channels + engine for isolated testing.
+Tests live in `shared/.jvm/src/test/scala/rsvpreader/` and use MUnit:
 
-**Two config profiles:**
+| Suite | Tests | What it covers |
+|-------|-------|----------------|
+| `PlaybackEngineSuite` | 14 | Engine state machine, commands, timing |
+| `ReducerSuite` | 12 | All action types, state transitions |
+| `viewmodel/OrpLayoutSuite` | 5 | ORP offset/split computation |
+| `viewmodel/SentenceWindowSuite` | 6 | Sentence context paging |
+| `viewmodel/KeyDispatchSuite` | 6 | Key resolution with modal/capture guards |
+| `state/PersistenceSuite` | 4 | InMemoryPersistence round-trips |
+| `TokenizerSuite` | Various | Tokenization edge cases |
+| Other domain suites | Various | Token, Delay, Punctuation |
+
+**Two config profiles for PlaybackEngine:**
 - `instantConfig` — `Int.MaxValue` WPM, zero delays. Fully command-driven, no timing.
 - `fastConfig` — 6000 WPM (~10ms/word). Allows `Async.sleep` interleaving for command tests.
 
