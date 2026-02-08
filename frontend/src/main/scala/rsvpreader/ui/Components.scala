@@ -55,7 +55,7 @@ object Components:
         case Absent => span(cls := "focus-placeholder", "READY TO READ")
         case Present(token) =>
           if s.status == PlayStatus.Paused || s.status == PlayStatus.Finished then
-            pauseTextView(s)
+            pauseTextView(s, domain.sendCommand)
           else
             orpWordView(OrpLayout.compute(token, m.centerMode))
     }
@@ -75,7 +75,7 @@ object Components:
         span(cls := "orp-before", layout.before)
     )
 
-  private def pauseTextView(s: ViewState): HtmlElement =
+  private def pauseTextView(s: ViewState, sendCommand: Command => Unit): HtmlElement =
     val tokens = s.tokens
     val currentIdx = s.index
 
@@ -92,7 +92,8 @@ object Components:
           // Use data attribute to find the current word for scrolling
           (if isCurrent then Maybe(dataAttr("current") := "true") else Absent).toOption.toSeq,
           s"${token.text}${token.punctuation.text}",
-          " "
+          " ",
+          onClick --> (_ => sendCommand(Command.JumpToIndex(i)))
         )
 
         if isParagraphBreak then
