@@ -4,16 +4,16 @@ import kyo.*
 import rsvpreader.*
 
 object SentenceWindow:
-  def compute(tokens: Span[Token], currentIndex: Int, numSentences: Int): Seq[WordDisplay] =
-    if tokens.isEmpty || currentIndex < 0 || currentIndex >= tokens.length then return Seq.empty
+  def compute(tokens: Span[Token], currentIndex: Int, numSentences: Int): Chunk[WordDisplay] =
+    if tokens.isEmpty || currentIndex < 0 || currentIndex >= tokens.length then return Chunk.empty
 
     val currentToken = tokens(currentIndex)
     val currentSentenceIdx = currentToken.sentenceIndex
     val currentParagraphIdx = currentToken.paragraphIndex
 
     // Filter to current paragraph
-    val paraTokenIndices = (0 until tokens.length).filter(i => tokens(i).paragraphIndex == currentParagraphIdx)
-    if paraTokenIndices.isEmpty then return Seq.empty
+    val paraTokenIndices = Chunk.from((0 until tokens.length)).filter(i => tokens(i).paragraphIndex == currentParagraphIdx)
+    if paraTokenIndices.isEmpty then return Chunk.empty
 
     // Page computation: find first sentence in paragraph, then page based on numSentences
     val firstSentenceInPara = tokens(paraTokenIndices.head).sentenceIndex

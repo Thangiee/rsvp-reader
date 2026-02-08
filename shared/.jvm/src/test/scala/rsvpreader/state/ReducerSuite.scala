@@ -6,11 +6,11 @@ import rsvpreader.*
 
 class ReducerSuite extends FunSuite:
 
-  val tokens: Span[Token] = Span.from(Seq(
+  val tokens: Span[Token] = Span(
     Token("one", 0, Punctuation.None, 0, 0),
     Token("two", 0, Punctuation.None, 0, 0),
     Token("three", 1, Punctuation.Period("."), 0, 0)
-  ))
+  )
 
   val initial = DomainModel(
     viewState = ViewState(tokens, 1, PlayStatus.Playing, 300),

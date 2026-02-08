@@ -23,19 +23,19 @@ class PlaybackEngineSuite extends FunSuite:
     paragraphDelay = Duration.Zero
   )
 
-  val tokens: Span[Token] = Span.from(Seq(
+  val tokens: Span[Token] = Span(
     Token("one", 0, Punctuation.None, 0, 0),
     Token("two", 0, Punctuation.None, 0, 0),
     Token("three", 1, Punctuation.Period("."), 0, 0)
-  ))
+  )
 
-  val moreTokens: Span[Token] = Span.from(Seq(
+  val moreTokens: Span[Token] = Span(
     Token("a", 0, Punctuation.None, 0, 0),
     Token("b", 0, Punctuation.None, 0, 0),
     Token("c", 0, Punctuation.None, 0, 0),
     Token("d", 0, Punctuation.None, 0, 0),
     Token("e", 1, Punctuation.Period("."), 0, 0)
-  ))
+  )
 
   /** Test harness that manages channels, engine lifecycle, and state collection. */
   class Harness(
@@ -344,12 +344,12 @@ class PlaybackEngineSuite extends FunSuite:
     }
 
   // Two-paragraph tokens: paragraph 0 has "hello world.", paragraph 1 has "new para."
-  val twoParagraphTokens: Span[Token] = Span.from(Seq(
+  val twoParagraphTokens: Span[Token] = Span(
     Token("hello", 1, Punctuation.None, 0, 0),
     Token("world.", 1, Punctuation.Paragraph, 0, 0),
     Token("new", 0, Punctuation.None, 1, 1),
     Token("para.", 1, Punctuation.Period("."), 1, 1)
-  ))
+  )
 
   test("WPM-based delay prevents instant completion"):
     // 300 WPM = 200ms per word
@@ -361,7 +361,7 @@ class PlaybackEngineSuite extends FunSuite:
       paragraphDelay = Duration.Zero,
       wordLengthEnabled = false
     )
-    val singleToken = Span.from(Seq(Token("test", 1, Punctuation.None, 0, 0)))
+    val singleToken = Span(Token("test", 1, Punctuation.None, 0, 0))
     runTest {
       Clock.withTimeControl { control =>
         direct {
@@ -450,10 +450,10 @@ class PlaybackEngineSuite extends FunSuite:
             paragraphDelay = Duration.Zero,
             wordLengthEnabled = false
           )
-          val periodToken = Span.from(Seq(
+          val periodToken = Span(
             Token("end.", 1, Punctuation.Period("."), 0, 0),
             Token("next", 1, Punctuation.None, 1, 0)
-          ))
+          )
           val h     = Harness.init(slowPeriodConfig).now
           val fiber = h.start(periodToken).now
           h.send(Command.Resume).now

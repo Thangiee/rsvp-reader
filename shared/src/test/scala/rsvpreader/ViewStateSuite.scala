@@ -5,12 +5,12 @@ import munit.FunSuite
 
 class ViewStateSuite extends FunSuite:
 
-  val tokens: Span[Token] = Span.from(Seq(
+  val tokens: Span[Token] = Span(
     Token("Hello", 1, Punctuation.None, 0, 0),
     Token("world", 1, Punctuation.Period("."), 0, 0),
     Token("New", 0, Punctuation.None, 1, 1),
     Token("sentence", 2, Punctuation.Period("."), 1, 1)
-  ))
+  )
 
   val config = RsvpConfig(baseWpm = 300)
 

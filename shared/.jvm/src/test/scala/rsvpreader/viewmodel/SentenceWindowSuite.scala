@@ -7,12 +7,12 @@ import rsvpreader.*
 class SentenceWindowSuite extends FunSuite:
 
   // Two sentences in one paragraph: "Hello world. Foo bar."
-  val tokens: Span[Token] = Span.from(Seq(
+  val tokens: Span[Token] = Span(
     Token("Hello", 1, Punctuation.None, 0, 0),
     Token("world", 1, Punctuation.Period("."), 0, 0),
     Token("Foo", 0, Punctuation.None, 1, 0),
     Token("bar", 0, Punctuation.Period("."), 1, 0)
-  ))
+  )
 
   test("shows current sentence page with correct current marker"):
     val result = SentenceWindow.compute(tokens, currentIndex = 0, numSentences = 1)
@@ -48,10 +48,10 @@ class SentenceWindowSuite extends FunSuite:
     assertEquals(result.length, 0)
 
   // Two paragraphs: "Hello." (para 0) and "World." (para 1)
-  val twoParagraphs: Span[Token] = Span.from(Seq(
+  val twoParagraphs: Span[Token] = Span(
     Token("Hello", 1, Punctuation.Period("."), 0, 0),
     Token("World", 1, Punctuation.Period("."), 1, 1)
-  ))
+  )
 
   test("filters to current paragraph only"):
     val result = SentenceWindow.compute(twoParagraphs, currentIndex = 0, numSentences = 1)

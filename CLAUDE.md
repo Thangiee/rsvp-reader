@@ -92,6 +92,17 @@ Components receive `DomainContext` (read-only signal + dispatch) and `UiState` a
 - Unsafe escape for UI callbacks: `import AllowUnsafe.embrace.danger` then `(using AllowUnsafe)`
 - Effect types: `Unit < (Async & Abort[Closed])` for channel operations
 
+### Prefer Kyo Data Types
+
+Use Kyo's allocation-free data types over Scala stdlib equivalents:
+
+| Stdlib | Kyo | Notes |
+|--------|-----|-------|
+| `Option[A]` / `Some` / `None` | `Maybe[A]` / `Present` / `Absent` | Unboxed opaque type. Use `Maybe(nullableValue)` for null-safety. Convert at stdlib boundaries: `maybe.toOption`, `Maybe.fromOption(opt)` |
+| `Seq[A]` / `List[A]` / `Array[A]` | `Span[A]` or `Chunk[A]` | See Span vs Chunk guidance below |
+
+refer to the /kyo skill.
+
 ## Laminar Patterns
 
 - Reactive state: `LaminarVar[T]` with `.signal` for read-only access
