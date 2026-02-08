@@ -6,7 +6,8 @@ import rsvpreader.state.*
 
 object LocalStoragePersistence extends Persistence:
 
-  def load: DomainModel < Sync = Sync.defer {
+  /** Synchronous load for bootstrap (before Kyo runtime is available). */
+  def loadSync: DomainModel =
     val wpm = Maybe(localStorage.getItem("rsvp-wpm"))
       .flatMap(s => Maybe.fromOption(s.toIntOption)).filter(w => w >= 100 && w <= 1000).getOrElse(300)
     val centerMode = Maybe(localStorage.getItem("rsvp-centerMode"))
@@ -27,7 +28,8 @@ object LocalStoragePersistence extends Persistence:
       keyBindings = bindings,
       contextSentences = contextSentences
     )
-  }
+
+  def load: DomainModel < Sync = Sync.defer(loadSync)
 
   def save(model: DomainModel): Unit < Sync = Sync.defer {
     localStorage.setItem("rsvp-wpm", model.viewState.wpm.toString)
@@ -42,7 +44,8 @@ object LocalStoragePersistence extends Persistence:
     localStorage.setItem("rsvp-position", s"$textHash:$index")
   }
 
-  def loadPosition: Maybe[(Int, Int)] < Sync = Sync.defer {
+  /** Synchronous load for bootstrap (before Kyo runtime is available). */
+  def loadPositionSync: Maybe[(Int, Int)] =
     Maybe(localStorage.getItem("rsvp-position")).flatMap { raw =>
       val parts = raw.split(":")
       if parts.length == 2 then
@@ -53,4 +56,5 @@ object LocalStoragePersistence extends Persistence:
         Maybe.fromOption(result)
       else Absent
     }
-  }
+
+  def loadPosition: Maybe[(Int, Int)] < Sync = Sync.defer(loadPositionSync)

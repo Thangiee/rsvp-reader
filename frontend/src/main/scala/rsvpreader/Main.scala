@@ -36,11 +36,9 @@ object Main extends KyoApp:
 
   private val persistence: Persistence = LocalStoragePersistence
 
-  private val initialModel: DomainModel =
-    KyoApp.Unsafe.runAndBlock(5.seconds)(persistence.load).getOrThrow
+  private val initialModel: DomainModel = LocalStoragePersistence.loadSync
 
-  private val savedPosition: Maybe[(Int, Int)] =
-    KyoApp.Unsafe.runAndBlock(5.seconds)(persistence.loadPosition).getOrThrow
+  private val savedPosition: Maybe[(Int, Int)] = LocalStoragePersistence.loadPositionSync
 
   // Mutable position tracker — read by engineLoop, updated by onTextLoaded
   @volatile private var currentPosition: Maybe[(Int, Int)] = savedPosition
