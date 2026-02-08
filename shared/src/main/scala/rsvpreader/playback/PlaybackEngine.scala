@@ -90,7 +90,7 @@ class PlaybackEngine(
               case Present(cmd) =>
                 val newState = applyCommand(cmd, state)
                 cmd match
-                  case Command.RestartSentence | Command.RestartParagraph =>
+                  case Command.RestartSentence | Command.RestartParagraph | Command.JumpToIndex(_) =>
                     emit(newState).andThen {
                       configRef.get.map { config =>
                         if config.startDelay > Duration.Zero then
@@ -151,6 +151,10 @@ class PlaybackEngine(
 
       case Command.SetSpeed(wpm) =>
         state.copy(wpm = wpm)
+
+      case Command.JumpToIndex(i) =>
+        val clamped = Math.max(0, Math.min(i, state.tokens.length - 1))
+        state.copy(index = clamped, status = PlayStatus.Paused)
 
   private def findSentenceStart(tokens: Span[Token], current: Int, sentenceIdx: Int): Int =
     var i = current

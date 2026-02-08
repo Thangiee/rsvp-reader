@@ -112,3 +112,16 @@ class ReducerSuite extends FunSuite:
   test("RestartParagraph at first paragraph start does nothing"):
     val result = Reducer(modelAt(0), Action.PlaybackCmd(Command.RestartParagraph))
     assertEquals(result.viewState.index, 0)
+
+  test("JumpToIndex sets index and keeps Paused status"):
+    val result = Reducer(modelAt(0), Action.PlaybackCmd(Command.JumpToIndex(5)))
+    assertEquals(result.viewState.index, 5)
+    assertEquals(result.viewState.status, PlayStatus.Paused)
+
+  test("JumpToIndex clamps to last token when out of bounds"):
+    val result = Reducer(modelAt(0), Action.PlaybackCmd(Command.JumpToIndex(100)))
+    assertEquals(result.viewState.index, multiSentenceTokens.length - 1)
+
+  test("JumpToIndex clamps negative to 0"):
+    val result = Reducer(modelAt(3), Action.PlaybackCmd(Command.JumpToIndex(-5)))
+    assertEquals(result.viewState.index, 0)

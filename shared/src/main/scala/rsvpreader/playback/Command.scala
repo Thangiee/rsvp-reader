@@ -7,3 +7,4 @@ enum Command:
   case RestartSentence
   case RestartParagraph
   case SetSpeed(wpm: Int)
+  case JumpToIndex(index: Int)

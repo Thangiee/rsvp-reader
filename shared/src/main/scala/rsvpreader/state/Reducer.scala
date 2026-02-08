@@ -46,6 +46,9 @@ object Reducer:
           state.copy(index = prev)
         else
           state.copy(index = start)
+      case Command.JumpToIndex(i) =>
+        val clamped = Math.max(0, Math.min(i, state.tokens.length - 1))
+        state.copy(index = clamped, status = PlayStatus.Paused)
 
   private def findStart(tokens: Span[Token], current: Int, inGroup: Token => Boolean): Int =
     var i = current
