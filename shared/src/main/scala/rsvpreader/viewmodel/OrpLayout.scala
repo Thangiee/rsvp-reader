@@ -8,7 +8,8 @@ case class OrpLayout(before: String, focus: String, after: String, offset: Doubl
 object OrpLayout:
   def compute(token: Token, centerMode: CenterMode): OrpLayout =
     val text = token.text
-    val halfLen = text.length / 2.0
+    val totalLen = text.length + token.punctuation.text.length
+    val halfLen = totalLen / 2.0
     centerMode match
       case CenterMode.ORP =>
         val fi = token.focusIndex

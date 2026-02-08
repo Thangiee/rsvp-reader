@@ -30,10 +30,13 @@ class OrpLayoutSuite extends FunSuite:
     assertEquals(result.focus, "")
     assertEqualsDouble(result.offset, 0.0, 0.001)
 
-  test("includes punctuation text in after"):
+  test("includes punctuation text in after with correct offset"):
     val token = Token("end", 1, Punctuation.Period("."), 0, 0)
     val result = OrpLayout.compute(token, CenterMode.ORP)
     assertEquals(result.after, "d.")
+    // totalLen = 3 + 1 = 4, halfLen = 2.0
+    // offset = -2.0 + 0.5 + 1 = -0.5
+    assertEqualsDouble(result.offset, -0.5, 0.001)
 
   test("single character word"):
     val token = Token("I", 0, Punctuation.None, 0, 0)
