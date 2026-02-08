@@ -19,17 +19,20 @@ rsvp-reader/
 ├── build.sbt
 ├── shared/                        # Cross-compiled (JVM + JS)
 │   └── src/main/scala/rsvpreader/
-│       ├── Token.scala            # Word unit with ORP index, punctuation, sentence/paragraph indices
-│       ├── Tokenizer.scala        # Parses raw text → Span[Token]
-│       ├── Punctuation.scala      # Enum: None, Comma, Period, Paragraph
-│       ├── PlayStatus.scala       # Enum: Playing, Paused, Finished
-│       ├── Command.scala          # Enum: Pause, Resume, RestartSentence, RestartParagraph, SetSpeed(wpm)
-│       ├── ViewState.scala        # Immutable UI snapshot: tokens, index, status, wpm
-│       ├── RsvpConfig.scala       # Timing config: WPM, delays, feature flags
-│       ├── Delay.scala            # calculateDelay(token, config) → Duration
-│       ├── PlaybackEngine.scala   # Async playback loop with command handling
-│       ├── CenterMode.scala       # Enum: ORP, First, None
-│       ├── KeyBindings.scala      # Customizable keyboard shortcut map
+│       ├── token/
+│       │   ├── Token.scala        # Word unit with ORP index, punctuation, sentence/paragraph indices
+│       │   ├── Tokenizer.scala    # Parses raw text → Span[Token]
+│       │   └── Punctuation.scala  # Enum: None, Comma, Period, Paragraph
+│       ├── playback/
+│       │   ├── PlaybackEngine.scala # Async playback loop with command handling
+│       │   ├── Command.scala      # Enum: Pause, Resume, RestartSentence, RestartParagraph, SetSpeed(wpm)
+│       │   ├── ViewState.scala    # Immutable UI snapshot: tokens, index, status, wpm
+│       │   ├── PlayStatus.scala   # Enum: Playing, Paused, Finished
+│       │   └── Delay.scala        # calculateDelay(token, config) → Duration
+│       ├── config/
+│       │   ├── RsvpConfig.scala   # Timing config: WPM, delays, feature flags
+│       │   ├── CenterMode.scala   # Enum: ORP, First, None
+│       │   └── KeyBindings.scala  # Customizable keyboard shortcut map
 │       ├── viewmodel/
 │       │   ├── OrpLayout.scala    # Pure ORP offset/split computation
 │       │   ├── WordDisplay.scala  # Word with CSS class and current flag
@@ -127,7 +130,7 @@ KyoApp.run {
 
 ### 3. Playback Engine (Word Iterator)
 
-Lives in `shared/PlaybackEngine.scala`. Runs as an async loop using `kyo.Loop`.
+Lives in `shared/playback/PlaybackEngine.scala`. Runs as an async loop using `kyo.Loop`.
 
 ```
 State machine:  Playing ←→ Paused
@@ -243,7 +246,7 @@ import com.raquo.laminar.api.L.{Var as LaminarVar, Signal as LaminarSignal, Span
 
 ## Persistence
 
-`Persistence` trait (in shared/) defines load/save operations with `Sync` effect:
+`Persistence` trait (in shared/state/) defines load/save operations with `Sync` effect:
 
 ```scala
 trait Persistence:
@@ -261,18 +264,18 @@ The state manager fiber calls `persistence.save(model)` for settings changes. Po
 
 ## Testing
 
-Tests live in `shared/.jvm/src/test/scala/rsvpreader/` and use MUnit:
+Tests live in `shared/.jvm/src/test/scala/rsvpreader/` (mirroring source sub-packages) and use MUnit:
 
 | Suite | Tests | What it covers |
 |-------|-------|----------------|
-| `PlaybackEngineSuite` | 14 | Engine state machine, commands, timing |
-| `ReducerSuite` | 12 | All action types, state transitions |
+| `playback/PlaybackEngineSuite` | 14 | Engine state machine, commands, timing |
+| `state/ReducerSuite` | 12 | All action types, state transitions |
 | `viewmodel/OrpLayoutSuite` | 5 | ORP offset/split computation |
 | `viewmodel/SentenceWindowSuite` | 6 | Sentence context paging |
 | `viewmodel/KeyDispatchSuite` | 6 | Key resolution with modal/capture guards |
 | `state/PersistenceSuite` | 4 | InMemoryPersistence round-trips |
-| `TokenizerSuite` | Various | Tokenization edge cases |
-| Other domain suites | Various | Token, Delay, Punctuation |
+| `token/TokenizerSuite` | Various | Tokenization edge cases |
+| Other domain suites | Various | Token, Delay, Punctuation, Config |
 
 **Two config profiles for PlaybackEngine:**
 - `instantConfig` — `Int.MaxValue` WPM, zero delays. Fully command-driven, no timing.
@@ -283,7 +286,7 @@ Tests live in `shared/.jvm/src/test/scala/rsvpreader/` and use MUnit:
 **Test runner:**
 ```bash
 sbt "sharedJVM/test"                                    # all tests
-sbt "sharedJVM/testOnly rsvpreader.PlaybackEngineSuite"  # specific suite
+sbt "sharedJVM/testOnly rsvpreader.playback.PlaybackEngineSuite"  # specific suite
 ```
 
 ## Build & Run

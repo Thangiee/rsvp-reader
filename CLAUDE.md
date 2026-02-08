@@ -33,7 +33,7 @@ sbt ~frontend/fastLinkJS
 sbt test
 
 # Run specific test suite
-sbt "sharedJVM/testOnly rsvpreader.TokenizerSuite"
+sbt "sharedJVM/testOnly rsvpreader.token.TokenizerSuite"
 
 # Cross-compile shared module
 sbt sharedJVM/compile sharedJS/compile
@@ -51,10 +51,10 @@ shared (JVM + JS)  ←── backend (JVM only)
 ### Module Responsibilities
 
 **shared/** — Platform-independent RSVP domain types and logic:
-- `Token`, `Tokenizer` — word units with ORP index, punctuation, sentence/paragraph indices
-- `Command`, `PlaybackEngine`, `ViewState` — playback loop with async command handling
-- `RsvpConfig`, `Delay` — timing configuration and delay calculation
-- `viewmodel/` — pure view model computations (OrpLayout, SentenceWindow, KeyDispatch)
+- `token/` — `Token`, `Tokenizer`, `Punctuation` — word units with ORP index, punctuation detection, sentence/paragraph tracking
+- `playback/` — `PlaybackEngine`, `Command`, `ViewState`, `PlayStatus`, `Delay` — async playback loop with command handling and timing
+- `config/` — `RsvpConfig`, `CenterMode`, `KeyBindings` — timing configuration, display settings, keyboard shortcuts
+- `viewmodel/` — pure view model computations (`OrpLayout`, `SentenceWindow`, `KeyDispatch`)
 - `state/` — domain model, actions, reducer, persistence trait (`DomainModel`, `Action`, `Reducer`, `Persistence`)
 
 **backend/** — Kyo `KyoApp` serving static assets via Tapir routes
