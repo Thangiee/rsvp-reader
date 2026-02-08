@@ -134,12 +134,20 @@ class PlaybackEngine(
       case Command.RestartSentence =>
         val currentSentence = state.currentToken.fold(-1)(_.sentenceIndex)
         val sentenceStart = findSentenceStart(state.tokens, state.index, currentSentence)
-        state.copy(index = sentenceStart)
+        if state.index == sentenceStart && currentSentence > 0 then
+          val prevStart = findSentenceStart(state.tokens, sentenceStart - 1, currentSentence - 1)
+          state.copy(index = prevStart)
+        else
+          state.copy(index = sentenceStart)
 
       case Command.RestartParagraph =>
         val currentParagraph = state.currentToken.fold(-1)(_.paragraphIndex)
         val paragraphStart = findParagraphStart(state.tokens, state.index, currentParagraph)
-        state.copy(index = paragraphStart)
+        if state.index == paragraphStart && currentParagraph > 0 then
+          val prevStart = findParagraphStart(state.tokens, paragraphStart - 1, currentParagraph - 1)
+          state.copy(index = prevStart)
+        else
+          state.copy(index = paragraphStart)
 
       case Command.SetSpeed(wpm) =>
         state.copy(wpm = wpm)
