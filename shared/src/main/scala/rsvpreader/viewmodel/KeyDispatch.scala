@@ -1,5 +1,6 @@
 package rsvpreader.viewmodel
 
+import kyo.*
 import rsvpreader.*
 
 object KeyDispatch:
@@ -8,6 +9,6 @@ object KeyDispatch:
     bindings: KeyBindings,
     modalsOpen: Boolean,
     capturing: Boolean
-  ): Option[KeyAction] =
-    if modalsOpen || capturing then None
+  ): Maybe[KeyAction] =
+    if modalsOpen || capturing then Absent
     else bindings.actionFor(key)

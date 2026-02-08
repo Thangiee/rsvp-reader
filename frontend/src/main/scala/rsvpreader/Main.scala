@@ -39,15 +39,15 @@ object Main extends KyoApp:
   private val initialModel: DomainModel =
     KyoApp.Unsafe.runAndBlock(5.seconds)(persistence.load).getOrThrow
 
-  private val savedPosition: Option[(Int, Int)] =
+  private val savedPosition: Maybe[(Int, Int)] =
     KyoApp.Unsafe.runAndBlock(5.seconds)(persistence.loadPosition).getOrThrow
 
   // Mutable position tracker — read by engineLoop, updated by onTextLoaded
-  @volatile private var currentPosition: Option[(Int, Int)] = savedPosition
+  @volatile private var currentPosition: Maybe[(Int, Int)] = savedPosition
 
   // Load saved input text from localStorage
   private val savedInputText: String =
-    Option(dom.window.localStorage.getItem("rsvp-inputText"))
+    Maybe(dom.window.localStorage.getItem("rsvp-inputText"))
       .filter(_.trim.nonEmpty)
       .getOrElse("")
 
@@ -78,7 +78,7 @@ object Main extends KyoApp:
       case PlayStatus.Playing  => sendCommand(Command.Pause)
       case PlayStatus.Finished =>
         // Clear saved position so engine restarts from beginning
-        currentPosition = None
+        currentPosition = Absent
         dom.window.localStorage.removeItem("rsvp-position")
         // Re-send current tokens to start a fresh playback session
         val tokens = modelVar.now().viewState.tokens
@@ -248,14 +248,14 @@ object Main extends KyoApp:
     tokensCh: Channel[kyo.Span[Token]],
     persistence: Persistence
   ): Unit =
-    ui.loadError.set(None)
+    ui.loadError.set(Absent)
     try
       val tokens = Tokenizer.tokenize(text)
       val textHash = text.hashCode
       val startIndex = currentPosition match
-        case Some((hash, idx)) if hash == textHash => idx
+        case Present((hash, idx)) if hash == textHash => idx
         case _ => 0
-      currentPosition = Some((textHash, startIndex))
+      currentPosition = Present((textHash, startIndex))
       // Save input text so it persists across reloads
       dom.window.localStorage.setItem("rsvp-inputText", text)
       println(s"Loaded ${tokens.length} tokens (resuming at $startIndex), sending to engine")
@@ -263,7 +263,7 @@ object Main extends KyoApp:
       ()
     catch
       case ex: Exception =>
-        ui.loadError.set(Some(s"Failed to process text: ${ex.getMessage}"))
+        ui.loadError.set(Maybe(s"Failed to process text: ${ex.getMessage}"))
 
   /** Saves the current playback position to localStorage. */
   private def savePosition(): Unit =

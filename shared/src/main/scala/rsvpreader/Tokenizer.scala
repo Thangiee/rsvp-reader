@@ -41,9 +41,9 @@ object Tokenizer:
       .replaceAll("[)\"'\\u201d\\u2019]+$", "")
 
   private def extractPunctuation(word: String): (String, Punctuation) =
-    word.lastOption match
-      case Some(c) if ".!?".contains(c) => (word.init, Punctuation.Period(c.toString))
-      case Some(c) if ",;:".contains(c) => (word.init, Punctuation.Comma(c.toString))
+    Maybe.fromOption(word.lastOption) match
+      case Present(c) if ".!?".contains(c) => (word.init, Punctuation.Period(c.toString))
+      case Present(c) if ",;:".contains(c) => (word.init, Punctuation.Comma(c.toString))
       case _ => (word, Punctuation.None)
 
   private def calculateFocusIndex(word: String): Int = {

@@ -1,5 +1,6 @@
 package rsvpreader
 
+import kyo.*
 import munit.FunSuite
 
 class KeyBindingsSuite extends FunSuite:
@@ -23,9 +24,9 @@ class KeyBindingsSuite extends FunSuite:
 
   test("KeyBindings.actionFor returns correct action"):
     val bindings = KeyBindings.default
-    assertEquals(bindings.actionFor(" "), Some(KeyAction.PlayPause))
-    assertEquals(bindings.actionFor("r"), Some(KeyAction.RestartParagraph))
-    assertEquals(bindings.actionFor("unknown"), None)
+    assertEquals(bindings.actionFor(" "), Present(KeyAction.PlayPause))
+    assertEquals(bindings.actionFor("r"), Present(KeyAction.RestartParagraph))
+    assertEquals(bindings.actionFor("unknown"), Absent)
 
   test("KeyBindings.withBinding updates binding"):
     val bindings = KeyBindings.default.withBinding(KeyAction.PlayPause, "Enter")

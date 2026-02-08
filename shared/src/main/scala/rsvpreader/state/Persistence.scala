@@ -7,7 +7,7 @@ trait Persistence:
   def load: DomainModel < Sync
   def save(model: DomainModel): Unit < Sync
   def savePosition(textHash: Int, index: Int): Unit < Sync
-  def loadPosition: Option[(Int, Int)] < Sync
+  def loadPosition: Maybe[(Int, Int)] < Sync
 
 class InMemoryPersistence(store: scala.collection.mutable.Map[String, String]) extends Persistence:
 
@@ -44,14 +44,16 @@ class InMemoryPersistence(store: scala.collection.mutable.Map[String, String]) e
     store("rsvp-position") = s"$textHash:$index"
   }
 
-  def loadPosition: Option[(Int, Int)] < Sync = Sync.defer {
-    store.get("rsvp-position").flatMap { raw =>
-      val parts = raw.split(":")
-      if parts.length == 2 then
-        for
-          hash <- parts(0).toIntOption
-          idx  <- parts(1).toIntOption
-        yield (hash, idx)
-      else None
+  def loadPosition: Maybe[(Int, Int)] < Sync = Sync.defer {
+    Maybe.fromOption {
+      store.get("rsvp-position").flatMap { raw =>
+        val parts = raw.split(":")
+        if parts.length == 2 then
+          for
+            hash <- parts(0).toIntOption
+            idx  <- parts(1).toIntOption
+          yield (hash, idx)
+        else None
+      }
     }
   }

@@ -1,5 +1,7 @@
 package rsvpreader
 
+import kyo.Maybe
+
 /** Actions that can be bound to keyboard keys. */
 enum KeyAction:
   case PlayPause
@@ -15,8 +17,8 @@ enum KeyAction:
 case class KeyBindings(bindings: Map[KeyAction, String]):
   def keyFor(action: KeyAction): String = bindings.getOrElse(action, "")
 
-  def actionFor(key: String): Option[KeyAction] =
-    bindings.find(_._2 == key).map(_._1)
+  def actionFor(key: String): Maybe[KeyAction] =
+    Maybe.fromOption(bindings.find(_._2 == key).map(_._1))
 
   def withBinding(action: KeyAction, key: String): KeyBindings =
     copy(bindings = bindings + (action -> key))

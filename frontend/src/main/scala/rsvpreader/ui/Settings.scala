@@ -1,6 +1,7 @@
 package rsvpreader.ui
 
 import com.raquo.laminar.api.L.{Var as LaminarVar, Signal as LaminarSignal, *}
+import kyo.*
 import org.scalajs.dom
 import rsvpreader.*
 import rsvpreader.state.*
@@ -102,17 +103,17 @@ object Settings:
     span(cls := "action-name", actionLabel(action)),
     button(
       cls <-- ui.capturingKeyFor.signal.map {
-        case Some(a) if a == action => "key-capture capturing"
-        case _                      => "key-capture"
+        case Present(a) if a == action => "key-capture capturing"
+        case _                         => "key-capture"
       },
       child.text <-- ui.capturingKeyFor.signal.combineWith(domain.model.map(_.keyBindings)).map {
-        case (Some(a), _) if a == action => "Press a key..."
+        case (Present(a), _) if a == action => "Press a key..."
         case (_, bindings) =>
           bindings.keyFor(action) match
             case " " => "Space"
             case k   => k
       },
-      onClick --> (_ => ui.capturingKeyFor.set(Some(action)))
+      onClick --> (_ => ui.capturingKeyFor.set(Present(action)))
     )
   )
 

@@ -88,7 +88,7 @@ object Components:
         val wordSpan = span(
           cls := (if isCurrent then "pause-word current" else "pause-word"),
           // Use data attribute to find the current word for scrolling
-          (if isCurrent then Some(dataAttr("current") := "true") else None).toSeq,
+          (if isCurrent then Maybe(dataAttr("current") := "true") else Absent).toOption.toSeq,
           s"${token.text}${token.punctuation.text}",
           " "
         )
@@ -183,12 +183,12 @@ object Components:
   def keyboardHandler(domain: DomainContext, ui: UiState): Modifier[HtmlElement] =
     onKeyDown.compose(_.withCurrentValueOf(domain.model)) --> { (event, model) =>
       ui.capturingKeyFor.now() match
-        case Some(action) =>
+        case Present(action) =>
           // Capture the key for remapping
           event.preventDefault()
           domain.dispatch(Action.UpdateKeyBinding(action, event.key))
-          ui.capturingKeyFor.set(None)
-        case None =>
+          ui.capturingKeyFor.set(Absent)
+        case Absent =>
           val modalsOpen = ui.showSettingsModal.now() || ui.showTextInputModal.now()
           val capturing = ui.capturingKeyFor.now().isDefined
           val bindings = model.keyBindings
@@ -240,14 +240,14 @@ object Components:
           value <-- ui.inputText.signal,
           onInput.mapToValue --> ui.inputText.writer
         ),
-        onInput --> (_ => ui.loadError.set(None))
+        onInput --> (_ => ui.loadError.set(Absent))
       ),
       child.maybe <-- ui.loadError.signal.map {
-        case Some(msg) => Some(div(
+        case Present(msg) => Some(div(
           cls := "load-error",
           msg
         ))
-        case None => None
+        case Absent => None
       },
       button(
         cls := "start-reading-btn",

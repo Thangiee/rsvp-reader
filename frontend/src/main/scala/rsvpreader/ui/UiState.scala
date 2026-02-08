@@ -1,6 +1,7 @@
 package rsvpreader.ui
 
 import com.raquo.laminar.api.L.{Var as LaminarVar, *}
+import kyo.*
 import rsvpreader.*
 
 /** Transient UI state that does not belong in the domain model.
@@ -12,8 +13,8 @@ case class UiState(
   showTextInputModal: LaminarVar[Boolean],
   showSettingsModal: LaminarVar[Boolean],
   inputText: LaminarVar[String],
-  loadError: LaminarVar[Option[String]],
-  capturingKeyFor: LaminarVar[Option[KeyAction]]
+  loadError: LaminarVar[Maybe[String]],
+  capturingKeyFor: LaminarVar[Maybe[KeyAction]]
 )
 
 object UiState:
@@ -21,6 +22,6 @@ object UiState:
     showTextInputModal = LaminarVar(showTextInput),
     showSettingsModal = LaminarVar(false),
     inputText = LaminarVar(inputText),
-    loadError = LaminarVar(None),
-    capturingKeyFor = LaminarVar(None)
+    loadError = LaminarVar(Absent),
+    capturingKeyFor = LaminarVar(Absent)
   )

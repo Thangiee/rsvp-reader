@@ -7,16 +7,16 @@ import rsvpreader.state.*
 object LocalStoragePersistence extends Persistence:
 
   def load: DomainModel < Sync = Sync.defer {
-    val wpm = Option(localStorage.getItem("rsvp-wpm"))
-      .flatMap(_.toIntOption).filter(w => w >= 100 && w <= 1000).getOrElse(300)
-    val centerMode = Option(localStorage.getItem("rsvp-centerMode"))
+    val wpm = Maybe(localStorage.getItem("rsvp-wpm"))
+      .flatMap(s => Maybe.fromOption(s.toIntOption)).filter(w => w >= 100 && w <= 1000).getOrElse(300)
+    val centerMode = Maybe(localStorage.getItem("rsvp-centerMode"))
       .map(CenterMode.fromString).getOrElse(CenterMode.ORP)
-    val contextSentences = Option(localStorage.getItem("rsvp-contextSentences"))
-      .flatMap(_.toIntOption).filter(n => n >= 1 && n <= 4).getOrElse(1)
+    val contextSentences = Maybe(localStorage.getItem("rsvp-contextSentences"))
+      .flatMap(s => Maybe.fromOption(s.toIntOption)).filter(n => n >= 1 && n <= 4).getOrElse(1)
 
     var bindings = KeyBindings.default
     KeyAction.values.foreach { action =>
-      Option(localStorage.getItem(s"rsvp-key-${action.toString}")).foreach { key =>
+      Maybe(localStorage.getItem(s"rsvp-key-${action.toString}")).foreach { key =>
         bindings = bindings.withBinding(action, key)
       }
     }
@@ -42,14 +42,15 @@ object LocalStoragePersistence extends Persistence:
     localStorage.setItem("rsvp-position", s"$textHash:$index")
   }
 
-  def loadPosition: Option[(Int, Int)] < Sync = Sync.defer {
-    Option(localStorage.getItem("rsvp-position")).flatMap { raw =>
+  def loadPosition: Maybe[(Int, Int)] < Sync = Sync.defer {
+    Maybe(localStorage.getItem("rsvp-position")).flatMap { raw =>
       val parts = raw.split(":")
       if parts.length == 2 then
-        for
+        val result = for
           hash <- parts(0).toIntOption
           idx  <- parts(1).toIntOption
         yield (hash, idx)
-      else None
+        Maybe.fromOption(result)
+      else Absent
     }
   }
