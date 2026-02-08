@@ -113,6 +113,24 @@ class ReducerSuite extends FunSuite:
     val result = Reducer(modelAt(0), Action.PlaybackCmd(Command.RestartParagraph))
     assertEquals(result.viewState.index, 0)
 
+  // Tokens with non-contiguous sentence indices (matching real Tokenizer output).
+  // Tokenizer increments sentenceIdx at paragraph boundaries AND after periods,
+  // so sentence indices can skip (e.g., 0 → 2 when a paragraph ends with a period).
+  val gappedSentenceTokens: Span[Token] = Span(
+    Token("Hello", 0, Punctuation.None,       0, 0),  // sent 0, para 0
+    Token("world", 0, Punctuation.Period("."), 0, 0),  // sent 0, para 0 (period → sentIdx++)
+    // paragraph break → sentIdx++ again, so sentence jumps from 0 to 2
+    Token("New",   0, Punctuation.None,       2, 1),   // sent 2, para 1
+    Token("day",   0, Punctuation.Period("."), 2, 1)    // sent 2, para 1
+  )
+
+  def gappedModelAt(idx: Int): DomainModel =
+    initial.copy(viewState = ViewState(gappedSentenceTokens, idx, PlayStatus.Paused, 300))
+
+  test("RestartSentence at paragraph start with non-contiguous sentence indices goes to previous sentence start"):
+    val result = Reducer(gappedModelAt(2), Action.PlaybackCmd(Command.RestartSentence))
+    assertEquals(result.viewState.index, 0)
+
   test("JumpToIndex sets index and keeps Paused status"):
     val result = Reducer(modelAt(0), Action.PlaybackCmd(Command.JumpToIndex(5)))
     assertEquals(result.viewState.index, 5)

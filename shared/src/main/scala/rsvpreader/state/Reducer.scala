@@ -33,16 +33,18 @@ object Reducer:
       case Command.RestartSentence =>
         val si = state.currentToken.fold(-1)(_.sentenceIndex)
         val start = findStart(state.tokens, state.index, _.sentenceIndex == si)
-        if state.index == start && si > 0 then
-          val prev = findStart(state.tokens, start - 1, _.sentenceIndex == si - 1)
+        if state.index == start && start > 0 then
+          val prevSi = state.tokens(start - 1).sentenceIndex
+          val prev = findStart(state.tokens, start - 1, _.sentenceIndex == prevSi)
           state.copy(index = prev)
         else
           state.copy(index = start)
       case Command.RestartParagraph =>
         val pi = state.currentToken.fold(-1)(_.paragraphIndex)
         val start = findStart(state.tokens, state.index, _.paragraphIndex == pi)
-        if state.index == start && pi > 0 then
-          val prev = findStart(state.tokens, start - 1, _.paragraphIndex == pi - 1)
+        if state.index == start && start > 0 then
+          val prevPi = state.tokens(start - 1).paragraphIndex
+          val prev = findStart(state.tokens, start - 1, _.paragraphIndex == prevPi)
           state.copy(index = prev)
         else
           state.copy(index = start)
