@@ -1,4 +1,4 @@
-package rsvpreader
+package rsvpreader.playback
 
 /** Current state of the RSVP playback engine. */
 enum PlayStatus:

@@ -1,6 +1,7 @@
 package rsvpreader.viewmodel
 
-import rsvpreader.*
+import rsvpreader.token.*
+import rsvpreader.config.*
 
 case class OrpLayout(before: String, focus: String, after: String, offset: Double)
 

@@ -1,7 +1,7 @@
 package rsvpreader.ui
 
 import com.raquo.laminar.api.L.{Signal as LaminarSignal, *}
-import rsvpreader.*
+import rsvpreader.playback.*
 import rsvpreader.state.*
 
 /** Provides read-only access to domain state and a dispatch function for actions.

@@ -1,4 +1,4 @@
-package rsvpreader
+package rsvpreader.playback
 
 /** Playback control commands sent to the PlaybackEngine via Channel. */
 enum Command:

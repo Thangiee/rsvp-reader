@@ -2,6 +2,8 @@ package rsvpreader
 
 import kyo.*
 import org.scalajs.dom.window.localStorage
+import rsvpreader.playback.*
+import rsvpreader.config.*
 import rsvpreader.state.*
 
 object LocalStoragePersistence extends Persistence:

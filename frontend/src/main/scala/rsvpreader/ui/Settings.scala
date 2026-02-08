@@ -3,7 +3,7 @@ package rsvpreader.ui
 import com.raquo.laminar.api.L.{Var as LaminarVar, Signal as LaminarSignal, *}
 import kyo.*
 import org.scalajs.dom
-import rsvpreader.*
+import rsvpreader.config.*
 import rsvpreader.state.*
 
 /** Settings modal component for configuring keybindings and center mode. */

@@ -2,7 +2,9 @@ package rsvpreader.state
 
 import kyo.*
 import munit.FunSuite
-import rsvpreader.*
+import rsvpreader.token.*
+import rsvpreader.playback.*
+import rsvpreader.config.*
 
 class ReducerSuite extends FunSuite:
 

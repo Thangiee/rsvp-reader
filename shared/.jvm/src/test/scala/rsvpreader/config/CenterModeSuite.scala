@@ -1,4 +1,4 @@
-package rsvpreader
+package rsvpreader.config
 
 import munit.FunSuite
 

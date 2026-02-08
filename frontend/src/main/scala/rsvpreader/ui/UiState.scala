@@ -2,7 +2,7 @@ package rsvpreader.ui
 
 import com.raquo.laminar.api.L.{Var as LaminarVar, *}
 import kyo.*
-import rsvpreader.*
+import rsvpreader.config.*
 
 /** Transient UI state that does not belong in the domain model.
   *

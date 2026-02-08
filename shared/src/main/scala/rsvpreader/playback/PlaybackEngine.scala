@@ -1,6 +1,8 @@
-package rsvpreader
+package rsvpreader.playback
 
 import kyo.*
+import rsvpreader.token.*
+import rsvpreader.config.*
 
 /** Async playback engine that displays tokens at configured speed with command handling.
   *

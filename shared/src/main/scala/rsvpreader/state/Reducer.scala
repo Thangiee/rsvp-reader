@@ -1,7 +1,8 @@
 package rsvpreader.state
 
 import kyo.*
-import rsvpreader.*
+import rsvpreader.token.*
+import rsvpreader.playback.*
 
 object Reducer:
   def apply(model: DomainModel, action: Action): DomainModel =

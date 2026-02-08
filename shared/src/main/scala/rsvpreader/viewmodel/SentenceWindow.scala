@@ -1,7 +1,7 @@
 package rsvpreader.viewmodel
 
 import kyo.*
-import rsvpreader.*
+import rsvpreader.token.*
 
 object SentenceWindow:
   def compute(tokens: Span[Token], currentIndex: Int, numSentences: Int): Chunk[WordDisplay] =

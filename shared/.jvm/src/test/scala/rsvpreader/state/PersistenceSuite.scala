@@ -2,7 +2,8 @@ package rsvpreader.state
 
 import kyo.*
 import munit.FunSuite
-import rsvpreader.*
+import rsvpreader.playback.*
+import rsvpreader.config.*
 
 class PersistenceSuite extends FunSuite:
   import AllowUnsafe.embrace.danger

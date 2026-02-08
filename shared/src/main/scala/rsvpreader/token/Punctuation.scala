@@ -1,4 +1,4 @@
-package rsvpreader
+package rsvpreader.token
 
 /** Punctuation types that affect reading pace in RSVP display.
   * Each type maps to a configurable delay in RsvpConfig.

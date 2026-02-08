@@ -2,7 +2,7 @@ package rsvpreader.viewmodel
 
 import kyo.*
 import munit.FunSuite
-import rsvpreader.*
+import rsvpreader.token.*
 
 class SentenceWindowSuite extends FunSuite:
 

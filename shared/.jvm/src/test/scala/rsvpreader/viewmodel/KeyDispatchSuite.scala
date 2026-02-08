@@ -2,7 +2,7 @@ package rsvpreader.viewmodel
 
 import kyo.*
 import munit.FunSuite
-import rsvpreader.*
+import rsvpreader.config.*
 
 class KeyDispatchSuite extends FunSuite:
 

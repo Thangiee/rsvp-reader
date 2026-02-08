@@ -1,4 +1,4 @@
-package rsvpreader
+package rsvpreader.config
 
 /** ORP letter centering mode for focus word display.
   * - ORP: Center on the optimal recognition point (default)

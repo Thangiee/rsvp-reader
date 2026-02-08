@@ -1,7 +1,8 @@
 package rsvpreader.viewmodel
 
 import munit.FunSuite
-import rsvpreader.*
+import rsvpreader.token.*
+import rsvpreader.config.*
 
 class OrpLayoutSuite extends FunSuite:
 

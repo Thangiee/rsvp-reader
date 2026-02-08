@@ -1,6 +1,8 @@
-package rsvpreader
+package rsvpreader.playback
 
 import kyo.*
+import rsvpreader.token.*
+import rsvpreader.config.*
 
 /** Immutable snapshot of RSVP playback state for UI rendering.
   *

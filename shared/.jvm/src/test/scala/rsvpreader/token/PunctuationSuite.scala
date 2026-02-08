@@ -1,4 +1,4 @@
-package rsvpreader
+package rsvpreader.token
 
 import munit.FunSuite
 

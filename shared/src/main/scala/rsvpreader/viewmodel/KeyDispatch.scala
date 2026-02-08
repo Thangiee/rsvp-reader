@@ -1,7 +1,7 @@
 package rsvpreader.viewmodel
 
 import kyo.*
-import rsvpreader.*
+import rsvpreader.config.*
 
 object KeyDispatch:
   def resolve(

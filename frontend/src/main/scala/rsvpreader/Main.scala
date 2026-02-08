@@ -3,6 +3,9 @@ package rsvpreader
 import com.raquo.laminar.api.L.{Var as LaminarVar, *}
 import org.scalajs.dom
 import kyo.*
+import rsvpreader.token.*
+import rsvpreader.playback.*
+import rsvpreader.config.*
 import rsvpreader.state.*
 import rsvpreader.ui.*
 

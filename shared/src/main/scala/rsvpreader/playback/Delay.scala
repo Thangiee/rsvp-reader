@@ -1,6 +1,8 @@
-package rsvpreader
+package rsvpreader.playback
 
 import kyo.*
+import rsvpreader.token.*
+import rsvpreader.config.*
 
 /** Calculates display duration for a token based on WPM, word length, and punctuation.
   *

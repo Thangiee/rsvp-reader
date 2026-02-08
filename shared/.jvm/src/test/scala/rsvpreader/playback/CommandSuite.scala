@@ -1,4 +1,4 @@
-package rsvpreader
+package rsvpreader.playback
 
 import munit.FunSuite
 

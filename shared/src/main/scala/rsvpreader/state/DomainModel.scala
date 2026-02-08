@@ -1,7 +1,8 @@
 package rsvpreader.state
 
 import kyo.*
-import rsvpreader.*
+import rsvpreader.playback.*
+import rsvpreader.config.*
 
 case class DomainModel(
   viewState: ViewState,

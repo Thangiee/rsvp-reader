@@ -1,6 +1,7 @@
 package rsvpreader.state
 
-import rsvpreader.*
+import rsvpreader.playback.*
+import rsvpreader.config.*
 
 enum Action:
   case PlaybackCmd(cmd: Command)

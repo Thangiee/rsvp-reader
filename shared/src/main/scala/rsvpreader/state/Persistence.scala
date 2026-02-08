@@ -1,7 +1,8 @@
 package rsvpreader.state
 
 import kyo.*
-import rsvpreader.*
+import rsvpreader.playback.*
+import rsvpreader.config.*
 
 trait Persistence:
   def load: DomainModel < Sync
