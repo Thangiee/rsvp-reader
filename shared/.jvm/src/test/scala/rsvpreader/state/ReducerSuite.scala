@@ -73,3 +73,42 @@ class ReducerSuite extends FunSuite:
   test("wordProgress format"):
     val m = initial.copy(viewState = initial.viewState.copy(index = 1))
     assertEquals(DomainModel.wordProgress(m), "2 / 3")
+
+  // Multi-sentence tokens for restart-previous tests
+  val multiSentenceTokens: Span[Token] = Span(
+    Token("The",   0, Punctuation.None,       0, 0),
+    Token("two",   0, Punctuation.None,       0, 0),
+    Token("sat",   0, Punctuation.Period("."), 0, 0),
+    Token("A",     0, Punctuation.None,       1, 0),
+    Token("dog",   0, Punctuation.None,       1, 0),
+    Token("ran",   0, Punctuation.Period("."), 1, 0),
+    Token("New",   0, Punctuation.None,       2, 1),
+    Token("day",   0, Punctuation.Period("."), 2, 1)
+  )
+
+  def modelAt(idx: Int): DomainModel =
+    initial.copy(viewState = ViewState(multiSentenceTokens, idx, PlayStatus.Paused, 300))
+
+  test("RestartSentence mid-sentence goes to sentence start"):
+    val result = Reducer(modelAt(4), Action.PlaybackCmd(Command.RestartSentence))
+    assertEquals(result.viewState.index, 3)
+
+  test("RestartSentence at sentence start goes to previous sentence start"):
+    val result = Reducer(modelAt(3), Action.PlaybackCmd(Command.RestartSentence))
+    assertEquals(result.viewState.index, 0)
+
+  test("RestartSentence at first sentence start does nothing"):
+    val result = Reducer(modelAt(0), Action.PlaybackCmd(Command.RestartSentence))
+    assertEquals(result.viewState.index, 0)
+
+  test("RestartParagraph mid-paragraph goes to paragraph start"):
+    val result = Reducer(modelAt(7), Action.PlaybackCmd(Command.RestartParagraph))
+    assertEquals(result.viewState.index, 6)
+
+  test("RestartParagraph at paragraph start goes to previous paragraph start"):
+    val result = Reducer(modelAt(6), Action.PlaybackCmd(Command.RestartParagraph))
+    assertEquals(result.viewState.index, 0)
+
+  test("RestartParagraph at first paragraph start does nothing"):
+    val result = Reducer(modelAt(0), Action.PlaybackCmd(Command.RestartParagraph))
+    assertEquals(result.viewState.index, 0)
