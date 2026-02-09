@@ -47,19 +47,26 @@ object Components:
     )
   )
 
-  def focusWord(domain: DomainContext): HtmlElement = div(
-    cls := "focus-area",
-    child <-- domain.model.map { m =>
-      val s = m.viewState
-      s.currentToken match
-        case Absent => span(cls := "focus-placeholder", "READY TO READ")
-        case Present(token) =>
-          if s.status == PlayStatus.Paused || s.status == PlayStatus.Finished then
-            pauseTextView(s, domain.sendCommand)
-          else
-            orpWordView(OrpLayout.compute(token, m.centerMode))
-    }
-  )
+  def focusWord(domain: DomainContext): HtmlElement =
+    var pauseViewOpened = false
+    div(
+      cls := "focus-area",
+      child <-- domain.model.map { m =>
+        val s = m.viewState
+        s.currentToken match
+          case Absent =>
+            pauseViewOpened = false
+            span(cls := "focus-placeholder", "READY TO READ")
+          case Present(token) =>
+            if s.status == PlayStatus.Paused || s.status == PlayStatus.Finished then
+              val scrollOnMount = !pauseViewOpened
+              pauseViewOpened = true
+              pauseTextView(s, domain.sendCommand, scrollOnMount)
+            else
+              pauseViewOpened = false
+              orpWordView(OrpLayout.compute(token, m.centerMode))
+      }
+    )
 
   private def orpWordView(layout: OrpLayout): HtmlElement =
     span(
@@ -75,7 +82,7 @@ object Components:
         span(cls := "orp-before", layout.before)
     )
 
-  private def pauseTextView(s: ViewState, sendCommand: Command => Unit): HtmlElement =
+  private def pauseTextView(s: ViewState, sendCommand: Command => Unit, scrollOnMount: Boolean): HtmlElement =
     val tokens = s.tokens
     val currentIdx = s.index
 
@@ -101,14 +108,14 @@ object Components:
         else
           Seq(wordSpan)
       }.flatten,
-      // Auto-scroll to current word on mount
+      // Scroll to current word: smooth on first open, instant on re-renders
       onMountCallback { ctx =>
         val el = ctx.thisNode.ref.asInstanceOf[dom.html.Element]
         val currentWord = el.querySelector("[data-current='true']")
         if currentWord != null then
           val options = scalajs.js.Dynamic.literal(
             block = "center",
-            behavior = "smooth"
+            behavior = if scrollOnMount then "smooth" else "instant"
           )
           currentWord.asInstanceOf[scalajs.js.Dynamic].scrollIntoView(options)
       }
