@@ -143,3 +143,7 @@ class ReducerSuite extends FunSuite:
   test("JumpToIndex clamps negative to 0"):
     val result = Reducer(modelAt(3), Action.PlaybackCmd(Command.JumpToIndex(-5)))
     assertEquals(result.viewState.index, 0)
+
+  test("LoadText is a no-op in reducer"):
+    val result = Reducer(modelAt(4), Action.PlaybackCmd(Command.LoadText))
+    assertEquals(result, modelAt(4))

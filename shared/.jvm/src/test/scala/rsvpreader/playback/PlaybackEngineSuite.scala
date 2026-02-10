@@ -483,3 +483,30 @@ class PlaybackEngineSuite extends FunSuite:
         }
       }
     }
+
+  // -- LoadText tests (exits engine so new text can be loaded) --
+
+  test("LoadText while paused causes engine to exit"):
+    runTest {
+      direct {
+        val h     = Harness.init(fastConfig).now
+        val fiber = h.start(moreTokens).now
+        // Engine starts paused — send LoadText to exit
+        h.send(Command.LoadText).now
+        // engine.run() returns (fiber completes) — proves LoadText exits the loop
+        fiber.get.now
+      }
+    }
+
+  test("LoadText while playing causes engine to exit"):
+    runTest {
+      direct {
+        val h     = Harness.init(fastConfig).now
+        val fiber = h.start(moreTokens).now
+        h.send(Command.Resume).now
+        Async.sleep(10.millis).now
+        h.send(Command.LoadText).now
+        // engine.run() returns (fiber completes) — proves LoadText exits the loop
+        fiber.get.now
+      }
+    }

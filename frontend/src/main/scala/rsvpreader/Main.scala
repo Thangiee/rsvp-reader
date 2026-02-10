@@ -123,6 +123,14 @@ object Main extends KyoApp:
     dom.window.localStorage.setItem("rsvp-inputText", ui.inputText.now())
   })
 
+  // Auto-load saved text on startup
+  if savedInputText.trim.nonEmpty then
+    try
+      val tokens = Tokenizer.tokenize(savedInputText)
+      tokensCh.unsafe.offer(tokens)
+      ()
+    catch case _: Exception => ()
+
   // ─────────────────────────────────────────────────────────────────────────
   // Kyo Runtime Entry Point
   // All async Kyo effects must run inside this `run` block.
@@ -242,6 +250,9 @@ object Main extends KyoApp:
     * This is a DOM callback — it CANNOT run Kyo async effects directly.
     * Instead, it tokenizes the text and sends tokens through the channel.
     * The engineLoop (running in Kyo's runtime) will receive and process them.
+    *
+    * Sends LoadText command first to exit any active playback session,
+    * then offers the new tokens for the engine loop to pick up.
     */
   private def onTextLoaded(
     text: String,
@@ -260,6 +271,7 @@ object Main extends KyoApp:
       // Save input text so it persists across reloads
       dom.window.localStorage.setItem("rsvp-inputText", text)
       println(s"Loaded ${tokens.length} tokens (resuming at $startIndex), sending to engine")
+      commandCh.unsafe.offer(Command.LoadText)
       tokensCh.unsafe.offer(tokens)
       ()
     catch

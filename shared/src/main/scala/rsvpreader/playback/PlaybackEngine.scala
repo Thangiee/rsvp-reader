@@ -10,7 +10,7 @@ import rsvpreader.config.*
   * - Iterates through tokens word-by-word at configured WPM
   * - Uses Async.race(sleep, command) to respond instantly to pause/resume
   * - Manages state machine: Paused → Playing → Paused → ... → Finished
-  * - Exits when all tokens displayed
+  * - Exits when all tokens displayed or LoadText command received
   *
   * Uses Kyo Channel for responsive command processing (pause/resume interrupts sleep).
   * Uses Kyo Loop for stack-safe, explicit state machine semantics.
@@ -157,6 +157,9 @@ class PlaybackEngine(
       case Command.JumpToIndex(i) =>
         val clamped = Math.max(0, Math.min(i, state.tokens.length - 1))
         state.copy(index = clamped, status = PlayStatus.Paused)
+
+      case Command.LoadText =>
+        state.copy(status = PlayStatus.Finished)
 
   private def findSentenceStart(tokens: Span[Token], current: Int, sentenceIdx: Int): Int =
     var i = current
