@@ -6,7 +6,7 @@ import rsvpreader.token.*
 import rsvpreader.playback.*
 import rsvpreader.config.*
 
-class ReducerSuite extends FunSuite:
+class AppStateSuite extends FunSuite:
 
   val tokens: Span[Token] = Span(
     Token("one", 0, Punctuation.None, 0, 0),
@@ -23,31 +23,31 @@ class ReducerSuite extends FunSuite:
 
   test("EngineStateUpdate replaces viewState"):
     val newVs = ViewState(tokens, 2, PlayStatus.Finished, 300)
-    val result = Reducer(initial, Action.EngineStateUpdate(newVs))
+    val result = initial.transform(Action.EngineStateUpdate(newVs))
     assertEquals(result.viewState, newVs)
 
   test("PlaybackCmd Pause sets status to Paused"):
-    val result = Reducer(initial, Action.PlaybackCmd(Command.Pause))
+    val result = initial.transform(Action.PlaybackCmd(Command.Pause))
     assertEquals(result.viewState.status, PlayStatus.Paused)
 
   test("PlaybackCmd SetSpeed updates wpm"):
-    val result = Reducer(initial, Action.PlaybackCmd(Command.SetSpeed(500)))
+    val result = initial.transform(Action.PlaybackCmd(Command.SetSpeed(500)))
     assertEquals(result.viewState.wpm, 500)
 
   test("PlaybackCmd RestartSentence rewinds index to sentence start"):
-    val result = Reducer(initial, Action.PlaybackCmd(Command.RestartSentence))
+    val result = initial.transform(Action.PlaybackCmd(Command.RestartSentence))
     assertEquals(result.viewState.index, 0) // all tokens are sentence 0
 
   test("SetCenterMode updates centerMode"):
-    val result = Reducer(initial, Action.SetCenterMode(CenterMode.First))
+    val result = initial.transform(Action.SetCenterMode(CenterMode.First))
     assertEquals(result.centerMode, CenterMode.First)
 
   test("SetContextSentences updates contextSentences"):
-    val result = Reducer(initial, Action.SetContextSentences(3))
+    val result = initial.transform(Action.SetContextSentences(3))
     assertEquals(result.contextSentences, 3)
 
   test("UpdateKeyBinding updates single binding"):
-    val result = Reducer(initial, Action.UpdateKeyBinding(KeyAction.PlayPause, "p"))
+    val result = initial.transform(Action.UpdateKeyBinding(KeyAction.PlayPause, "p"))
     assertEquals(result.keyBindings.keyFor(KeyAction.PlayPause), "p")
     // Other bindings unchanged
     assertEquals(result.keyBindings.keyFor(KeyAction.SpeedUp), "ArrowUp")
@@ -90,27 +90,27 @@ class ReducerSuite extends FunSuite:
     initial.copy(viewState = ViewState(multiSentenceTokens, idx, PlayStatus.Paused, 300))
 
   test("RestartSentence mid-sentence goes to sentence start"):
-    val result = Reducer(modelAt(4), Action.PlaybackCmd(Command.RestartSentence))
+    val result = modelAt(4).transform(Action.PlaybackCmd(Command.RestartSentence))
     assertEquals(result.viewState.index, 3)
 
   test("RestartSentence at sentence start goes to previous sentence start"):
-    val result = Reducer(modelAt(3), Action.PlaybackCmd(Command.RestartSentence))
+    val result = modelAt(3).transform(Action.PlaybackCmd(Command.RestartSentence))
     assertEquals(result.viewState.index, 0)
 
   test("RestartSentence at first sentence start does nothing"):
-    val result = Reducer(modelAt(0), Action.PlaybackCmd(Command.RestartSentence))
+    val result = modelAt(0).transform(Action.PlaybackCmd(Command.RestartSentence))
     assertEquals(result.viewState.index, 0)
 
   test("RestartParagraph mid-paragraph goes to paragraph start"):
-    val result = Reducer(modelAt(7), Action.PlaybackCmd(Command.RestartParagraph))
+    val result = modelAt(7).transform(Action.PlaybackCmd(Command.RestartParagraph))
     assertEquals(result.viewState.index, 6)
 
   test("RestartParagraph at paragraph start goes to previous paragraph start"):
-    val result = Reducer(modelAt(6), Action.PlaybackCmd(Command.RestartParagraph))
+    val result = modelAt(6).transform(Action.PlaybackCmd(Command.RestartParagraph))
     assertEquals(result.viewState.index, 0)
 
   test("RestartParagraph at first paragraph start does nothing"):
-    val result = Reducer(modelAt(0), Action.PlaybackCmd(Command.RestartParagraph))
+    val result = modelAt(0).transform(Action.PlaybackCmd(Command.RestartParagraph))
     assertEquals(result.viewState.index, 0)
 
   // Tokens with non-contiguous sentence indices (matching real Tokenizer output).
@@ -128,22 +128,22 @@ class ReducerSuite extends FunSuite:
     initial.copy(viewState = ViewState(gappedSentenceTokens, idx, PlayStatus.Paused, 300))
 
   test("RestartSentence at paragraph start with non-contiguous sentence indices goes to previous sentence start"):
-    val result = Reducer(gappedModelAt(2), Action.PlaybackCmd(Command.RestartSentence))
+    val result = gappedModelAt(2).transform(Action.PlaybackCmd(Command.RestartSentence))
     assertEquals(result.viewState.index, 0)
 
   test("JumpToIndex sets index and keeps Paused status"):
-    val result = Reducer(modelAt(0), Action.PlaybackCmd(Command.JumpToIndex(5)))
+    val result = modelAt(0).transform(Action.PlaybackCmd(Command.JumpToIndex(5)))
     assertEquals(result.viewState.index, 5)
     assertEquals(result.viewState.status, PlayStatus.Paused)
 
   test("JumpToIndex clamps to last token when out of bounds"):
-    val result = Reducer(modelAt(0), Action.PlaybackCmd(Command.JumpToIndex(100)))
+    val result = modelAt(0).transform(Action.PlaybackCmd(Command.JumpToIndex(100)))
     assertEquals(result.viewState.index, multiSentenceTokens.length - 1)
 
   test("JumpToIndex clamps negative to 0"):
-    val result = Reducer(modelAt(3), Action.PlaybackCmd(Command.JumpToIndex(-5)))
+    val result = modelAt(3).transform(Action.PlaybackCmd(Command.JumpToIndex(-5)))
     assertEquals(result.viewState.index, 0)
 
-  test("LoadText is a no-op in reducer"):
-    val result = Reducer(modelAt(4), Action.PlaybackCmd(Command.LoadText))
+  test("LoadText is a no-op in transform"):
+    val result = modelAt(4).transform(Action.PlaybackCmd(Command.LoadText))
     assertEquals(result, modelAt(4))

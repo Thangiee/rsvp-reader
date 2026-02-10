@@ -39,9 +39,8 @@ rsvp-reader/
 │       │   ├── SentenceWindow.scala # Sentence context paging logic
 │       │   └── KeyDispatch.scala  # Key → action resolution (modal/capture aware)
 │       └── state/
-│           ├── AppState.scala  # App state record + derived computations
+│           ├── AppState.scala     # App state record + transform + derived computations
 │           ├── Action.scala       # Enum: all state transitions
-│           ├── Reducer.scala      # Pure (AppState, Action) → AppState
 │           └── Persistence.scala  # Trait + InMemoryPersistence for tests
 ├── backend/
 │   └── src/main/scala/rsvpreader/
@@ -68,7 +67,7 @@ rsvp-reader/
 - `keyBindings: KeyBindings` — customizable shortcuts
 - `contextSentences: Int` — sentence context window size
 
-Flows through: `Action → actionCh → state manager fiber → Reducer → stateVar`
+Flows through: `Action → actionCh → state manager fiber → AppState.transform → stateVar`
 
 **UiState** — transient, synchronous state:
 - `showTextInputModal`, `showSettingsModal` — modal visibility
@@ -160,14 +159,14 @@ run(tokens):
 ```
 PlaybackEngine               stateConsumerLoop            State Manager Fiber        Laminar UI
 ──────────────               ─────────────────            ───────────────────        ──────────
-stateCh.put(ViewState) ──→ Action.EngineStateUpdate ──→ actionCh ──→ Reducer ──→ stateVar.set(newModel)
+stateCh.put(ViewState) ──→ Action.EngineStateUpdate ──→ actionCh ──→ .transform ──→ stateVar.set(newModel)
                                                                                        │
                                                                                 model.signal ──→ reactive DOM
 ```
 
 The state manager fiber (`stateManagerLoop`) is the single writer to `stateVar`. It:
 1. Takes `Action` from `actionCh`
-2. Applies `Reducer(model, action)` — pure function
+2. Applies `model.transform(action)` — pure method
 3. Sets `stateVar` — single write point
 4. Side effects: forwards `PlaybackCmd` to `commandCh`, persists settings changes via `Persistence`
 
@@ -269,7 +268,7 @@ Tests live in `shared/.jvm/src/test/scala/rsvpreader/` (mirroring source sub-pac
 | Suite | Tests | What it covers |
 |-------|-------|----------------|
 | `playback/PlaybackEngineSuite` | 14 | Engine state machine, commands, timing |
-| `state/ReducerSuite` | 12 | All action types, state transitions |
+| `state/AppStateSuite` | 12 | All action types, state transitions |
 | `viewmodel/OrpLayoutSuite` | 5 | ORP offset/split computation |
 | `viewmodel/SentenceWindowSuite` | 6 | Sentence context paging |
 | `viewmodel/KeyDispatchSuite` | 6 | Key resolution with modal/capture guards |

@@ -7,7 +7,7 @@ import rsvpreader.config.*
 /** Transient UI state that does not belong in the domain model.
   *
   * These are UI-only concerns like modal visibility and text input that
-  * are not persisted or reduced through the Action/Reducer pipeline.
+  * are not persisted or transformed through the Action/AppState.transform pipeline.
   */
 case class UiState(
   showTextInputModal: LaminarVar[Boolean],

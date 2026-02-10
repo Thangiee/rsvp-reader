@@ -16,7 +16,7 @@ import rsvpreader.ui.*
   * The app uses three concurrent fibers inside KyoApp's `run` block:
   *
   * 1. STATE MANAGER FIBER - "Single Writer"
-  *    - Takes Actions from the action channel and applies the Reducer
+  *    - Takes Actions from the action channel and applies AppState.transform
   *    - Updates the reactive stateVar (single writer, many readers)
   *    - Forwards playback commands to the command channel
   *    - Persists settings changes to localStorage
@@ -138,13 +138,13 @@ object Main extends KyoApp:
 
   /** State manager effect — single writer to stateVar.
     *
-    * Takes actions from the action channel, applies the Reducer, and updates stateVar.
+    * Takes actions from the action channel, applies transform, and updates stateVar.
     * Side effects: forwards playback commands to the command channel, persists settings.
     */
   private def stateManagerLoop: Unit < (Async & Abort[Closed]) =
     Loop(initialState) { model =>
       actionCh.take.map { action =>
-        val newModel = Reducer(model, action)
+        val newModel = model.transform(action)
         stateVar.set(newModel)
         // Side effects: forward commands to engine, persist settings changes
         val sideEffect: Unit < (Async & Abort[Closed]) = action match

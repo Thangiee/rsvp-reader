@@ -5,7 +5,7 @@ import rsvpreader.config.*
 
 /** Actions dispatched to the state manager via the action channel.
   *
-  * The Reducer applies these to produce a new AppState. PlaybackCmd actions
+  * AppState.transform applies these to produce a new AppState. PlaybackCmd actions
   * also forward the command to the engine via the command channel.
   */
 enum Action:

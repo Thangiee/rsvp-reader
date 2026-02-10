@@ -55,7 +55,7 @@ shared (JVM + JS)  ←── backend (JVM only)
 - `playback/` — `PlaybackEngine`, `Command`, `ViewState`, `PlayStatus`, `Delay` — async playback loop with command handling and timing
 - `config/` — `RsvpConfig`, `CenterMode`, `KeyBindings` — timing configuration, display settings, keyboard shortcuts
 - `viewmodel/` — pure view model computations (`OrpLayout`, `SentenceWindow`, `KeyDispatch`)
-- `state/` — domain model, actions, reducer, persistence trait (`AppState`, `Action`, `Reducer`, `Persistence`)
+- `state/` — app state, actions, persistence trait (`AppState`, `Action`, `Persistence`)
 
 **backend/** — Kyo `KyoApp` serving static assets via Tapir routes
 
@@ -71,7 +71,7 @@ shared (JVM + JS)  ←── backend (JVM only)
 ### State Management
 
 State is split into two categories:
-- **AppState** — playback state, settings (centerMode, keyBindings, contextSentences). Flows through `actionCh → Reducer → stateVar`. Pure reducer function, testable on JVM.
+- **AppState** — playback state, settings (centerMode, keyBindings, contextSentences). Flows through `actionCh → AppState.transform → stateVar`. Pure transform method, testable on JVM.
 - **UiState** — transient UI concerns (modal visibility, input text, key capture). Plain `LaminarVar` instances, synchronous.
 
 Components receive `AppContext` (read-only signal + dispatch) and `UiState` as explicit parameters. No global mutable state.
