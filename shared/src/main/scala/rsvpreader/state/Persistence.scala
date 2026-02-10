@@ -4,12 +4,17 @@ import kyo.*
 import rsvpreader.playback.*
 import rsvpreader.config.*
 
+/** Abstraction for persisting DomainModel settings and playback position.
+  *
+  * Implemented by LocalStoragePersistence (browser) and InMemoryPersistence (tests).
+  */
 trait Persistence:
   def load: DomainModel < Sync
   def save(model: DomainModel): Unit < Sync
   def savePosition(textHash: Int, index: Int): Unit < Sync
   def loadPosition: Maybe[(Int, Int)] < Sync
 
+/** In-memory Persistence backed by a mutable Map, used for testing. */
 class InMemoryPersistence(store: scala.collection.mutable.Map[String, String]) extends Persistence:
 
   def load: DomainModel < Sync = Sync.defer {

@@ -4,6 +4,13 @@ import kyo.*
 import rsvpreader.playback.*
 import rsvpreader.config.*
 
+/** Single source of truth for domain state, updated by the Reducer.
+  *
+  * @param viewState         Current playback snapshot (tokens, index, status, wpm)
+  * @param centerMode        ORP letter centering mode for the focus display
+  * @param keyBindings       User-configured keyboard shortcuts
+  * @param contextSentences  Number of sentences shown in the context window
+  */
 case class DomainModel(
   viewState: ViewState,
   centerMode: CenterMode,
@@ -11,6 +18,7 @@ case class DomainModel(
   contextSentences: Int
 )
 
+/** Derived view computations over DomainModel for UI rendering. */
 object DomainModel:
   def initial: DomainModel = DomainModel(
     viewState = ViewState(Span.empty, 0, PlayStatus.Paused, 300),

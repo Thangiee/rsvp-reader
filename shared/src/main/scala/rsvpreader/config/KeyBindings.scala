@@ -23,6 +23,7 @@ case class KeyBindings(bindings: Map[KeyAction, String]):
   def withBinding(action: KeyAction, key: String): KeyBindings =
     copy(bindings = bindings + (action -> key))
 
+/** Default keyboard bindings: Space=play/pause, s=sentence, r=paragraph, arrows=speed. */
 object KeyBindings:
   val default: KeyBindings = KeyBindings(Map(
     KeyAction.PlayPause        -> " ",

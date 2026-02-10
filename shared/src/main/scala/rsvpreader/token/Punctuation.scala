@@ -9,6 +9,7 @@ enum Punctuation:
   case Period(text: String)     // includes ! ?
   case Paragraph  // end of paragraph
 
+/** Provides the `text` extension to extract the display string from a Punctuation value. */
 object Punctuation:
   extension (p: Punctuation) def text: String = p match
     case None           => ""

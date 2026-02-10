@@ -3,6 +3,12 @@ package rsvpreader.viewmodel
 import kyo.*
 import rsvpreader.token.*
 
+/** Computes the visible sentence window for the pause-view context display.
+  *
+  * Groups tokens by paragraph, then pages them by sentence count so that
+  * the current word's sentence is always visible. Words outside the current
+  * sentence are dimmed; the current word is highlighted.
+  */
 object SentenceWindow:
   def compute(tokens: Span[Token], currentIndex: Int, numSentences: Int): Chunk[WordDisplay] =
     if tokens.isEmpty || currentIndex < 0 || currentIndex >= tokens.length then return Chunk.empty

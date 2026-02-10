@@ -21,6 +21,7 @@ case class ViewState(
     if index >= 0 && index < tokens.length then Maybe(tokens(index))
     else Absent
 
+/** Factory for creating the initial paused ViewState from tokens and config. */
 object ViewState:
   def initial(tokens: Span[Token], config: RsvpConfig, startIndex: Int = 0): ViewState =
     val clamped = if tokens.isEmpty then 0 else Math.min(startIndex, tokens.length - 1).max(0)

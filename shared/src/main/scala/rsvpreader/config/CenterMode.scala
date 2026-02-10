@@ -8,6 +8,7 @@ package rsvpreader.config
 enum CenterMode:
   case ORP, First, None
 
+/** Parses CenterMode from a persisted string, defaulting to ORP. */
 object CenterMode:
   def fromString(s: String): CenterMode = s.toLowerCase match
     case "orp"   => ORP
