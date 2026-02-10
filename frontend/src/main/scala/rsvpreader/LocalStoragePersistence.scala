@@ -45,21 +45,63 @@ object LocalStoragePersistence extends Persistence:
     }
   }
 
-  def savePosition(textHash: Int, index: Int): Unit < Sync = Sync.defer {
-    localStorage.setItem("rsvp-position", s"$textHash:$index")
+  def savePosition(bookHash: Int, chapterIndex: Int, index: Int): Unit < Sync = Sync.defer {
+    localStorage.setItem("rsvp-position", s"$bookHash:$chapterIndex:$index")
   }
 
+  def savePositionSync(bookHash: Int, chapterIndex: Int, index: Int): Unit =
+    localStorage.setItem("rsvp-position", s"$bookHash:$chapterIndex:$index")
+
   /** Synchronous load for bootstrap (before Kyo runtime is available). */
-  def loadPositionSync: Maybe[(Int, Int)] =
+  def loadPositionSync: Maybe[(Int, Int, Int)] =
     Maybe(localStorage.getItem("rsvp-position")).flatMap { raw =>
       val parts = raw.split(":")
-      if parts.length == 2 then
+      if parts.length == 3 then
         val result = for
-          hash <- parts(0).toIntOption
-          idx  <- parts(1).toIntOption
-        yield (hash, idx)
+          hash       <- parts(0).toIntOption
+          chapterIdx <- parts(1).toIntOption
+          idx        <- parts(2).toIntOption
+        yield (hash, chapterIdx, idx)
         Maybe.fromOption(result)
       else Absent
     }
 
-  def loadPosition: Maybe[(Int, Int)] < Sync = Sync.defer(loadPositionSync)
+  def loadPosition: Maybe[(Int, Int, Int)] < Sync = Sync.defer(loadPositionSync)
+
+  def saveBook(book: Book): Unit < Sync = Sync.defer {
+    saveBookSync(book)
+  }
+
+  def saveBookSync(book: Book): Unit =
+    import scala.scalajs.js
+    val chaptersJson = (0 until book.chapters.length).map { i =>
+      val ch = book.chapters(i)
+      js.JSON.stringify(js.Dynamic.literal(
+        "title" -> ch.title,
+        "text" -> ch.text
+      ))
+    }.mkString("[", ",", "]")
+    val json = s"""{"title":${js.JSON.stringify(book.title)},"author":${js.JSON.stringify(book.author)},"chapters":$chaptersJson}"""
+    localStorage.setItem("rsvp-book", json)
+
+  def loadBook: Maybe[Book] < Sync = Sync.defer {
+    loadBookSync
+  }
+
+  def loadBookSync: Maybe[Book] =
+    import scala.scalajs.js
+    Maybe(localStorage.getItem("rsvp-book")).flatMap { json =>
+      try
+        val parsed = js.JSON.parse(json)
+        val title = parsed.selectDynamic("title").asInstanceOf[String]
+        val author = parsed.selectDynamic("author").asInstanceOf[String]
+        val chaptersArr = parsed.selectDynamic("chapters").asInstanceOf[js.Array[js.Dynamic]]
+        val chapters = Span.from(chaptersArr.map { ch =>
+          Chapter(
+            ch.selectDynamic("title").asInstanceOf[String],
+            ch.selectDynamic("text").asInstanceOf[String]
+          )
+        }.toArray)
+        Maybe(Book(title, author, chapters))
+      catch case _: Exception => Absent
+    }

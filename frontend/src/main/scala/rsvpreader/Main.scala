@@ -41,10 +41,10 @@ object Main extends KyoApp:
 
   private val initialState: AppState = LocalStoragePersistence.loadSync
 
-  private val savedPosition: Maybe[(Int, Int)] = LocalStoragePersistence.loadPositionSync
+  private val savedPosition: Maybe[(Int, Int, Int)] = LocalStoragePersistence.loadPositionSync
 
   // Mutable position tracker — read by engineLoop, updated by onTextLoaded
-  @volatile private var currentPosition: Maybe[(Int, Int)] = savedPosition
+  @volatile private var currentPosition: Maybe[(Int, Int, Int)] = savedPosition
 
   // Load saved input text from localStorage
   private val savedInputText: String =
@@ -196,7 +196,7 @@ object Main extends KyoApp:
         // savedPosition must be read AFTER take returns so that togglePlayPause's
         // clearing of savedPosition (on restart after finish) is visible.
         tokensCh.take.map { tokens =>
-          val startIndex = currentPosition.map(_._2).getOrElse(0)
+          val startIndex = currentPosition.map(_._3).getOrElse(0)
           (tokens, startIndex)
         }.map { (tokens, startIndex) =>
           direct:
@@ -265,9 +265,9 @@ object Main extends KyoApp:
       val tokens = Tokenizer.tokenize(text)
       val textHash = text.hashCode
       val startIndex = currentPosition match
-        case Present((hash, idx)) if hash == textHash => idx
+        case Present((hash, _, idx)) if hash == textHash => idx
         case _ => 0
-      currentPosition = Present((textHash, startIndex))
+      currentPosition = Present((textHash, 0, startIndex))
       // Save input text so it persists across reloads
       dom.window.localStorage.setItem("rsvp-inputText", text)
       println(s"Loaded ${tokens.length} tokens (resuming at $startIndex), sending to engine")
@@ -281,6 +281,5 @@ object Main extends KyoApp:
   /** Saves the current playback position to localStorage. */
   private def savePosition(): Unit =
     val m = stateVar.now()
-    val text = ui.inputText.now()
-    if text.trim.nonEmpty then
-      dom.window.localStorage.setItem("rsvp-position", s"${text.hashCode}:${m.viewState.index}")
+    if m.book.chapters.length > 0 then
+      LocalStoragePersistence.savePositionSync(m.book.hashCode, m.chapterIndex, m.viewState.index)

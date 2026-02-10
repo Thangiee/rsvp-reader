@@ -44,9 +44,9 @@ class PersistenceSuite extends FunSuite:
     val store = scala.collection.mutable.Map.empty[String, String]
     val persistence = InMemoryPersistence(store)
     val result = runSync {
-      persistence.savePosition(12345, 42).andThen(persistence.loadPosition)
+      persistence.savePosition(12345, 2, 42).andThen(persistence.loadPosition)
     }
-    assertEquals(result, Present((12345, 42)))
+    assertEquals(result, Present((12345, 2, 42)))
 
   test("loadPosition returns Absent when not saved"):
     val store = scala.collection.mutable.Map.empty[String, String]

@@ -12,8 +12,10 @@ import rsvpreader.book.*
 trait Persistence:
   def load: AppState < Sync
   def save(model: AppState): Unit < Sync
-  def savePosition(textHash: Int, index: Int): Unit < Sync
-  def loadPosition: Maybe[(Int, Int)] < Sync
+  def savePosition(bookHash: Int, chapterIndex: Int, index: Int): Unit < Sync
+  def loadPosition: Maybe[(Int, Int, Int)] < Sync
+  def saveBook(book: Book): Unit < Sync
+  def loadBook: Maybe[Book] < Sync
 
 /** In-memory Persistence backed by a mutable Map, used for testing. */
 class InMemoryPersistence(store: scala.collection.mutable.Map[String, String]) extends Persistence:
@@ -49,20 +51,29 @@ class InMemoryPersistence(store: scala.collection.mutable.Map[String, String]) e
     }
   }
 
-  def savePosition(textHash: Int, index: Int): Unit < Sync = Sync.defer {
-    store("rsvp-position") = s"$textHash:$index"
+  def savePosition(bookHash: Int, chapterIndex: Int, index: Int): Unit < Sync = Sync.defer {
+    store("rsvp-position") = s"$bookHash:$chapterIndex:$index"
   }
 
-  def loadPosition: Maybe[(Int, Int)] < Sync = Sync.defer {
+  def loadPosition: Maybe[(Int, Int, Int)] < Sync = Sync.defer {
     Maybe.fromOption {
       store.get("rsvp-position").flatMap { raw =>
         val parts = raw.split(":")
-        if parts.length == 2 then
+        if parts.length == 3 then
           for
-            hash <- parts(0).toIntOption
-            idx  <- parts(1).toIntOption
-          yield (hash, idx)
+            hash       <- parts(0).toIntOption
+            chapterIdx <- parts(1).toIntOption
+            idx        <- parts(2).toIntOption
+          yield (hash, chapterIdx, idx)
         else None
       }
     }
+  }
+
+  def saveBook(book: Book): Unit < Sync = Sync.defer {
+    store("rsvp-book") = s"${book.title}|${book.author}|${book.chapters.length}"
+  }
+
+  def loadBook: Maybe[Book] < Sync = Sync.defer {
+    Absent
   }
