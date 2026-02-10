@@ -1043,7 +1043,10 @@
   </head>
   <body>
     <div id="app"></div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script type="module">
+      import { initEpubFile } from 'https://esm.sh/@lingo-reader/epub-parser@0.4.5';
+      window.__epubParser = { initEpubFile };
+    </script>
     <script src="/assets/main.js"></script>
   </body>
 </html>

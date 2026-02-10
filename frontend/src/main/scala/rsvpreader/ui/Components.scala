@@ -231,14 +231,9 @@ object Components:
         val files = inp.files
         if files.length > 0 then
           val file = files(0)
-          val reader = new dom.FileReader()
-          reader.onload = { _ =>
-            val arrayBuffer = reader.result.asInstanceOf[scala.scalajs.js.typedarray.ArrayBuffer]
-            EpubParser.parse(arrayBuffer).`then`[Unit] { book =>
-              domain.onLoadBook(book)
-            }
+          EpubParser.parse(file).`then`[Unit] { book =>
+            domain.onLoadBook(book)
           }
-          reader.readAsArrayBuffer(file)
           // Reset input so same file can be re-selected
           inp.value = ""
       }
