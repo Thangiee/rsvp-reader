@@ -7,21 +7,21 @@ import rsvpreader.state.*
 /** Top-level layout composition for the RSVP reader app. */
 object Layout:
 
-  def header(domain: DomainContext): HtmlElement = div(
+  def header(domain: AppContext): HtmlElement = div(
     cls := "header",
     div(cls := "logo", "RSVP ", span("Reader")),
     div(
       cls := "status-indicator",
-      div(cls <-- domain.model.map(DomainModel.statusDotCls)),
-      child.text <-- domain.model.map(DomainModel.statusText)
+      div(cls <-- domain.state.map(AppState.statusDotCls)),
+      child.text <-- domain.state.map(AppState.statusText)
     )
   )
 
-  def readingTheater(domain: DomainContext): HtmlElement = div(
+  def readingTheater(domain: AppContext): HtmlElement = div(
     cls := "reading-theater",
     div(cls := "theater-spacer"),
     div(
-      cls <-- domain.model.map(DomainModel.focusContainerCls),
+      cls <-- domain.state.map(AppState.focusContainerCls),
       div(cls := "orp-guides"),
       Components.focusWord(domain)
     ),
@@ -29,13 +29,13 @@ object Layout:
     Components.progressBar(domain)
   )
 
-  def controlsDock(domain: DomainContext, ui: UiState): HtmlElement = div(
+  def controlsDock(domain: AppContext, ui: UiState): HtmlElement = div(
     cls := "controls-dock",
     Components.primaryControls(domain),
     Components.secondaryControls(domain, ui)
   )
 
-  def app(domain: DomainContext, ui: UiState, onTextLoaded: String => Unit): HtmlElement = div(
+  def app(domain: AppContext, ui: UiState, onTextLoaded: String => Unit): HtmlElement = div(
     cls := "app-root",
     header(domain),
     readingTheater(domain),

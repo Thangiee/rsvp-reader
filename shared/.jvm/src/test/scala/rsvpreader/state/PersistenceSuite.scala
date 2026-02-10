@@ -11,14 +11,14 @@ class PersistenceSuite extends FunSuite:
   def runSync[A](effect: A < Sync): A =
     KyoApp.Unsafe.runAndBlock(5.seconds)(effect).getOrThrow
 
-  val model = DomainModel(
+  val model = AppState(
     viewState = ViewState(Span.empty, 0, PlayStatus.Paused, 450),
     centerMode = CenterMode.First,
     keyBindings = KeyBindings.default.withBinding(KeyAction.PlayPause, "p"),
     contextSentences = 3
   )
 
-  test("save then load round-trips DomainModel"):
+  test("save then load round-trips AppState"):
     val store = scala.collection.mutable.Map.empty[String, String]
     val persistence = InMemoryPersistence(store)
     runSync {

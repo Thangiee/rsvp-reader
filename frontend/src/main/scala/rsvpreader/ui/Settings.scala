@@ -9,7 +9,7 @@ import rsvpreader.state.*
 /** Settings modal component for configuring keybindings and center mode. */
 object Settings:
 
-  def modal(domain: DomainContext, ui: UiState): HtmlElement = div(
+  def modal(domain: AppContext, ui: UiState): HtmlElement = div(
     cls <-- ui.showSettingsModal.signal.map { show =>
       if show then "settings-modal visible" else "settings-modal"
     },
@@ -44,7 +44,7 @@ object Settings:
     )
   )
 
-  private def centerModeSection(domain: DomainContext): HtmlElement = div(
+  private def centerModeSection(domain: AppContext): HtmlElement = div(
     cls := "settings-section",
     h3("Center Mode"),
     p(cls := "settings-desc", "How the focus word is positioned"),
@@ -56,12 +56,12 @@ object Settings:
     )
   )
 
-  private def radioOption(domain: DomainContext, labelText: String, mode: CenterMode): HtmlElement = label(
+  private def radioOption(domain: AppContext, labelText: String, mode: CenterMode): HtmlElement = label(
     cls := "radio-option",
     input(
       typ := "radio",
       nameAttr := "centerMode",
-      checked <-- domain.model.map(_.centerMode == mode),
+      checked <-- domain.state.map(_.centerMode == mode),
       onChange --> { _ =>
         domain.dispatch(Action.SetCenterMode(mode))
       }
@@ -69,7 +69,7 @@ object Settings:
     span(labelText)
   )
 
-  private def contextSentencesSection(domain: DomainContext): HtmlElement = div(
+  private def contextSentencesSection(domain: AppContext): HtmlElement = div(
     cls := "settings-section",
     h3("Context Sentences"),
     p(cls := "settings-desc", "Number of sentences shown during playback"),
@@ -77,7 +77,7 @@ object Settings:
       cls := "segmented-control",
       (1 to 4).map { n =>
         button(
-          cls <-- domain.model.map { m =>
+          cls <-- domain.state.map { m =>
             if m.contextSentences == n then "segment-btn active" else "segment-btn"
           },
           n.toString,
@@ -89,7 +89,7 @@ object Settings:
     )
   )
 
-  private def keybindingsSection(domain: DomainContext, ui: UiState): HtmlElement = div(
+  private def keybindingsSection(domain: AppContext, ui: UiState): HtmlElement = div(
     cls := "settings-section",
     h3("Keyboard Shortcuts"),
     div(
@@ -98,7 +98,7 @@ object Settings:
     )
   )
 
-  private def keybindingRow(domain: DomainContext, ui: UiState, action: KeyAction): HtmlElement = div(
+  private def keybindingRow(domain: AppContext, ui: UiState, action: KeyAction): HtmlElement = div(
     cls := "keybinding-row",
     span(cls := "action-name", actionLabel(action)),
     button(
@@ -106,7 +106,7 @@ object Settings:
         case Present(a) if a == action => "key-capture capturing"
         case _                         => "key-capture"
       },
-      child.text <-- ui.capturingKeyFor.signal.combineWith(domain.model.map(_.keyBindings)).map {
+      child.text <-- ui.capturingKeyFor.signal.combineWith(domain.state.map(_.keyBindings)).map {
         case (Present(a), _) if a == action => "Press a key..."
         case (_, bindings) =>
           bindings.keyFor(action) match

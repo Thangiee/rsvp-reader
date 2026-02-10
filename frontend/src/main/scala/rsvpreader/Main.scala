@@ -17,7 +17,7 @@ import rsvpreader.ui.*
   *
   * 1. STATE MANAGER FIBER - "Single Writer"
   *    - Takes Actions from the action channel and applies the Reducer
-  *    - Updates the reactive modelVar (single writer, many readers)
+  *    - Updates the reactive stateVar (single writer, many readers)
   *    - Forwards playback commands to the command channel
   *    - Persists settings changes to localStorage
   *
@@ -39,7 +39,7 @@ object Main extends KyoApp:
 
   private val persistence: Persistence = LocalStoragePersistence
 
-  private val initialModel: DomainModel = LocalStoragePersistence.loadSync
+  private val initialState: AppState = LocalStoragePersistence.loadSync
 
   private val savedPosition: Maybe[(Int, Int)] = LocalStoragePersistence.loadPositionSync
 
@@ -53,10 +53,10 @@ object Main extends KyoApp:
       .getOrElse("")
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Reactive state: modelVar is the single source of truth
+  // Reactive state: stateVar is the single source of truth
   // ─────────────────────────────────────────────────────────────────────────
 
-  private val modelVar: LaminarVar[DomainModel] = LaminarVar(initialModel)
+  private val stateVar: LaminarVar[AppState] = LaminarVar(initialState)
 
   // Action channel — Components dispatch actions here, state manager consumes
   private val actionCh: Channel[Action] = Channel.Unsafe.init[Action](8).safe
@@ -75,32 +75,32 @@ object Main extends KyoApp:
   }
 
   private val togglePlayPause: () => Unit = () => {
-    modelVar.now().viewState.status match
+    stateVar.now().viewState.status match
       case PlayStatus.Playing  => sendCommand(Command.Pause)
       case PlayStatus.Finished =>
         // Clear saved position so engine restarts from beginning
         currentPosition = Absent
         dom.window.localStorage.removeItem("rsvp-position")
         // Re-send current tokens to start a fresh playback session
-        val tokens = modelVar.now().viewState.tokens
+        val tokens = stateVar.now().viewState.tokens
         tokensCh.unsafe.offer(tokens)
         ()
       case _ => sendCommand(Command.Resume)
   }
 
   private val adjustSpeed: Int => Unit = delta => {
-    val current = modelVar.now().viewState.wpm
+    val current = stateVar.now().viewState.wpm
     val clamped = Math.max(100, Math.min(1000, current + delta))
     sendCommand(Command.SetSpeed(clamped))
     dom.window.localStorage.setItem("rsvp-wpm", clamped.toString)
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Build DomainContext + UiState and render
+  // Build AppContext + UiState and render
   // ─────────────────────────────────────────────────────────────────────────
 
-  private val domain: DomainContext = DomainContext(
-    model = modelVar.signal,
+  private val domain: AppContext = AppContext(
+    state = stateVar.signal,
     dispatch = dispatch,
     sendCommand = sendCommand,
     togglePlayPause = togglePlayPause,
@@ -136,16 +136,16 @@ object Main extends KyoApp:
   // All async Kyo effects must run inside this `run` block.
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** State manager effect — single writer to modelVar.
+  /** State manager effect — single writer to stateVar.
     *
-    * Takes actions from the action channel, applies the Reducer, and updates modelVar.
+    * Takes actions from the action channel, applies the Reducer, and updates stateVar.
     * Side effects: forwards playback commands to the command channel, persists settings.
     */
   private def stateManagerLoop: Unit < (Async & Abort[Closed]) =
-    Loop(initialModel) { model =>
+    Loop(initialState) { model =>
       actionCh.take.map { action =>
         val newModel = Reducer(model, action)
-        modelVar.set(newModel)
+        stateVar.set(newModel)
         // Side effects: forward commands to engine, persist settings changes
         val sideEffect: Unit < (Async & Abort[Closed]) = action match
           case Action.PlaybackCmd(cmd) => commandCh.put(cmd)
@@ -159,7 +159,7 @@ object Main extends KyoApp:
   run {
     direct {
       val configRef = AtomicRef.init(RsvpConfig(
-        baseWpm = initialModel.viewState.wpm,
+        baseWpm = initialState.viewState.wpm,
         wordLengthFactor = .3
       )).now
 
@@ -280,7 +280,7 @@ object Main extends KyoApp:
 
   /** Saves the current playback position to localStorage. */
   private def savePosition(): Unit =
-    val m = modelVar.now()
+    val m = stateVar.now()
     val text = ui.inputText.now()
     if text.trim.nonEmpty then
       dom.window.localStorage.setItem("rsvp-position", s"${text.hashCode}:${m.viewState.index}")

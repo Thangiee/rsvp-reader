@@ -4,13 +4,13 @@ import kyo.*
 import rsvpreader.token.*
 import rsvpreader.playback.*
 
-/** Pure function that applies an Action to a DomainModel to produce a new state.
+/** Pure function that applies an Action to an AppState to produce a new state.
   *
   * Handles playback commands (with index rewinding for restart),
   * engine state updates, and settings changes. Testable on JVM without async.
   */
 object Reducer:
-  def apply(model: DomainModel, action: Action): DomainModel =
+  def apply(model: AppState, action: Action): AppState =
     action match
       case Action.EngineStateUpdate(vs) =>
         model.copy(viewState = vs)

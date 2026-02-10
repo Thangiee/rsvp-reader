@@ -39,9 +39,9 @@ rsvp-reader/
 │       │   ├── SentenceWindow.scala # Sentence context paging logic
 │       │   └── KeyDispatch.scala  # Key → action resolution (modal/capture aware)
 │       └── state/
-│           ├── DomainModel.scala  # App state record + derived computations
+│           ├── AppState.scala  # App state record + derived computations
 │           ├── Action.scala       # Enum: all state transitions
-│           ├── Reducer.scala      # Pure (DomainModel, Action) → DomainModel
+│           ├── Reducer.scala      # Pure (AppState, Action) → AppState
 │           └── Persistence.scala  # Trait + InMemoryPersistence for tests
 ├── backend/
 │   └── src/main/scala/rsvpreader/
@@ -51,7 +51,7 @@ rsvp-reader/
         ├── Main.scala             # KyoApp entry point — state manager + engine loop + DOM wiring
         ├── LocalStoragePersistence.scala  # Browser localStorage Persistence impl
         └── ui/
-            ├── DomainContext.scala # Read-only domain signal + dispatch/command closures
+            ├── AppContext.scala # Read-only domain signal + dispatch/command closures
             ├── UiState.scala      # Transient UI state (modals, input text, key capture)
             ├── Components.scala   # UI elements using shared view models
             ├── Layout.scala       # Page structure composition
@@ -62,13 +62,13 @@ rsvp-reader/
 
 ### Two State Categories
 
-**DomainModel** — persisted, reduced state:
+**AppState** — persisted, reduced state:
 - `viewState: ViewState` — current playback snapshot (driven by engine)
 - `centerMode: CenterMode` — ORP/First/None alignment
 - `keyBindings: KeyBindings` — customizable shortcuts
 - `contextSentences: Int` — sentence context window size
 
-Flows through: `Action → actionCh → state manager fiber → Reducer → modelVar`
+Flows through: `Action → actionCh → state manager fiber → Reducer → stateVar`
 
 **UiState** — transient, synchronous state:
 - `showTextInputModal`, `showSettingsModal` — modal visibility
@@ -81,10 +81,10 @@ Plain `LaminarVar` instances, no channels or reducer.
 ### Dependency Passing
 
 Components receive explicit parameters instead of accessing globals:
-- `DomainContext` — `model: Signal[DomainModel]`, `dispatch: Action => Unit`, `sendCommand`, `togglePlayPause`, `adjustSpeed`
+- `AppContext` — `model: Signal[AppState]`, `dispatch: Action => Unit`, `sendCommand`, `togglePlayPause`, `adjustSpeed`
 - `UiState` — plain case class with `LaminarVar` fields
 
-No global mutable state. `DomainContext` is created once in `Main` and threaded to all components.
+No global mutable state. `AppContext` is created once in `Main` and threaded to all components.
 
 ## Data Flow
 
@@ -160,15 +160,15 @@ run(tokens):
 ```
 PlaybackEngine               stateConsumerLoop            State Manager Fiber        Laminar UI
 ──────────────               ─────────────────            ───────────────────        ──────────
-stateCh.put(ViewState) ──→ Action.EngineStateUpdate ──→ actionCh ──→ Reducer ──→ modelVar.set(newModel)
+stateCh.put(ViewState) ──→ Action.EngineStateUpdate ──→ actionCh ──→ Reducer ──→ stateVar.set(newModel)
                                                                                        │
                                                                                 model.signal ──→ reactive DOM
 ```
 
-The state manager fiber (`stateManagerLoop`) is the single writer to `modelVar`. It:
+The state manager fiber (`stateManagerLoop`) is the single writer to `stateVar`. It:
 1. Takes `Action` from `actionCh`
 2. Applies `Reducer(model, action)` — pure function
-3. Sets `modelVar` — single write point
+3. Sets `stateVar` — single write point
 4. Side effects: forwards `PlaybackCmd` to `commandCh`, persists settings changes via `Persistence`
 
 ### 5. Commands (UI → Engine)
@@ -181,7 +181,7 @@ User clicks button / presses key
 
 Command dispatch uses `Channel.unsafe.offer` (non-blocking, drops if full). This is acceptable because the engine consumes commands quickly.
 
-`togglePlayPause()` checks `modelVar.now().viewState.status` to decide whether to send `Pause` or `Resume`. When status is `Finished`, it re-sends the current tokens through `tokensCh` to start a fresh playback session.
+`togglePlayPause()` checks `stateVar.now().viewState.status` to decide whether to send `Pause` or `Resume`. When status is `Finished`, it re-sends the current tokens through `tokensCh` to start a fresh playback session.
 
 ## Channels
 
@@ -214,7 +214,7 @@ All are pure functions taking domain types, returning value objects. Tested on J
 
 ## UI Layer (Laminar)
 
-**Components** are pure Laminar elements that receive `DomainContext` and `UiState` as parameters. They bind to `domain.model` signal for reactive rendering and call `domain.dispatch`, `domain.sendCommand`, etc. for user interactions.
+**Components** are pure Laminar elements that receive `AppContext` and `UiState` as parameters. They bind to `domain.model` signal for reactive rendering and call `domain.dispatch`, `domain.sendCommand`, etc. for user interactions.
 
 The focus word display switches between:
 - **Playing:** Single word with ORP highlighting (before/focus/after spans) + sentence context below
@@ -250,8 +250,8 @@ import com.raquo.laminar.api.L.{Var as LaminarVar, Signal as LaminarSignal, Span
 
 ```scala
 trait Persistence:
-  def load: DomainModel < Sync
-  def save(model: DomainModel): Unit < Sync
+  def load: AppState < Sync
+  def save(model: AppState): Unit < Sync
   def savePosition(textHash: Int, index: Int): Unit < Sync
   def loadPosition: Option[(Int, Int)] < Sync
 ```

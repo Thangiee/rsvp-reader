@@ -14,7 +14,7 @@ class ReducerSuite extends FunSuite:
     Token("three", 1, Punctuation.Period("."), 0, 0)
   )
 
-  val initial = DomainModel(
+  val initial = AppState(
     viewState = ViewState(tokens, 1, PlayStatus.Playing, 300),
     centerMode = CenterMode.ORP,
     keyBindings = KeyBindings.default,
@@ -55,24 +55,24 @@ class ReducerSuite extends FunSuite:
   // Derived computation tests
   test("progressPercent at start"):
     val m = initial.copy(viewState = initial.viewState.copy(index = 0))
-    assertEqualsDouble(DomainModel.progressPercent(m), 0.0, 0.001)
+    assertEqualsDouble(AppState.progressPercent(m), 0.0, 0.001)
 
   test("progressPercent at end"):
     val m = initial.copy(viewState = initial.viewState.copy(index = 2))
-    assertEqualsDouble(DomainModel.progressPercent(m), 100.0, 0.001)
+    assertEqualsDouble(AppState.progressPercent(m), 100.0, 0.001)
 
   test("progressPercent with empty tokens"):
     val m = initial.copy(viewState = ViewState(Span.empty, 0, PlayStatus.Paused, 300))
-    assertEqualsDouble(DomainModel.progressPercent(m), 0.0, 0.001)
+    assertEqualsDouble(AppState.progressPercent(m), 0.0, 0.001)
 
   test("timeRemaining with 300 WPM and 300 remaining"):
     val bigTokens = Span.from((1 to 300).map(i => Token(s"w$i", 0, Punctuation.None, 0, 0)))
     val m = initial.copy(viewState = ViewState(bigTokens, 0, PlayStatus.Playing, 300))
-    assertEquals(DomainModel.timeRemaining(m), "~1 min")
+    assertEquals(AppState.timeRemaining(m), "~1 min")
 
   test("wordProgress format"):
     val m = initial.copy(viewState = initial.viewState.copy(index = 1))
-    assertEquals(DomainModel.wordProgress(m), "2 / 3")
+    assertEquals(AppState.wordProgress(m), "2 / 3")
 
   // Multi-sentence tokens for restart-previous tests
   val multiSentenceTokens: Span[Token] = Span(
@@ -86,7 +86,7 @@ class ReducerSuite extends FunSuite:
     Token("day",   0, Punctuation.Period("."), 2, 1)
   )
 
-  def modelAt(idx: Int): DomainModel =
+  def modelAt(idx: Int): AppState =
     initial.copy(viewState = ViewState(multiSentenceTokens, idx, PlayStatus.Paused, 300))
 
   test("RestartSentence mid-sentence goes to sentence start"):
@@ -124,7 +124,7 @@ class ReducerSuite extends FunSuite:
     Token("day",   0, Punctuation.Period("."), 2, 1)    // sent 2, para 1
   )
 
-  def gappedModelAt(idx: Int): DomainModel =
+  def gappedModelAt(idx: Int): AppState =
     initial.copy(viewState = ViewState(gappedSentenceTokens, idx, PlayStatus.Paused, 300))
 
   test("RestartSentence at paragraph start with non-contiguous sentence indices goes to previous sentence start"):

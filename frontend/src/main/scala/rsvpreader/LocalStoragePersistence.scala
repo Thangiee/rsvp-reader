@@ -9,7 +9,7 @@ import rsvpreader.state.*
 object LocalStoragePersistence extends Persistence:
 
   /** Synchronous load for bootstrap (before Kyo runtime is available). */
-  def loadSync: DomainModel =
+  def loadSync: AppState =
     val wpm = Maybe(localStorage.getItem("rsvp-wpm"))
       .flatMap(s => Maybe.fromOption(s.toIntOption)).filter(w => w >= 100 && w <= 1000).getOrElse(300)
     val centerMode = Maybe(localStorage.getItem("rsvp-centerMode"))
@@ -24,16 +24,16 @@ object LocalStoragePersistence extends Persistence:
       }
     }
 
-    DomainModel(
+    AppState(
       viewState = ViewState(Span.empty, 0, PlayStatus.Paused, wpm),
       centerMode = centerMode,
       keyBindings = bindings,
       contextSentences = contextSentences
     )
 
-  def load: DomainModel < Sync = Sync.defer(loadSync)
+  def load: AppState < Sync = Sync.defer(loadSync)
 
-  def save(model: DomainModel): Unit < Sync = Sync.defer {
+  def save(model: AppState): Unit < Sync = Sync.defer {
     localStorage.setItem("rsvp-wpm", model.viewState.wpm.toString)
     localStorage.setItem("rsvp-centerMode", model.centerMode.toString.toLowerCase)
     localStorage.setItem("rsvp-contextSentences", model.contextSentences.toString)

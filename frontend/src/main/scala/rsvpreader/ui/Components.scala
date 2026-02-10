@@ -12,14 +12,14 @@ import rsvpreader.viewmodel.*
 /** Reusable UI components for the RSVP reader. */
 object Components:
 
-  def playPauseButton(domain: DomainContext): HtmlElement = button(
-    cls <-- domain.model.map { m =>
+  def playPauseButton(domain: AppContext): HtmlElement = button(
+    cls <-- domain.state.map { m =>
       val base = "control-btn large"
       m.viewState.status match
         case PlayStatus.Playing => s"$base playing"
         case _                  => s"$base primary"
     },
-    child.text <-- domain.model.map { m =>
+    child.text <-- domain.state.map { m =>
       m.viewState.status match
         case PlayStatus.Playing  => "\u23f8"
         case PlayStatus.Finished => "\u27f3"
@@ -28,7 +28,7 @@ object Components:
     onClick --> (_ => domain.togglePlayPause())
   )
 
-  def speedControls(domain: DomainContext): HtmlElement = div(
+  def speedControls(domain: AppContext): HtmlElement = div(
     cls := "speed-control",
     button(
       cls := "control-btn small",
@@ -37,7 +37,7 @@ object Components:
     ),
     div(
       cls := "speed-display",
-      child <-- domain.model.map(m => span(s"${m.viewState.wpm}")),
+      child <-- domain.state.map(m => span(s"${m.viewState.wpm}")),
       " wpm"
     ),
     button(
@@ -47,11 +47,11 @@ object Components:
     )
   )
 
-  def focusWord(domain: DomainContext): HtmlElement =
+  def focusWord(domain: AppContext): HtmlElement =
     var pauseViewOpened = false
     div(
       cls := "focus-area",
-      child <-- domain.model.map { m =>
+      child <-- domain.state.map { m =>
         val s = m.viewState
         s.currentToken match
           case Absent =>
@@ -121,12 +121,12 @@ object Components:
       }
     )
 
-  def sentenceContext(domain: DomainContext): HtmlElement = div(
-    cls <-- domain.model.map { m =>
+  def sentenceContext(domain: AppContext): HtmlElement = div(
+    cls <-- domain.state.map { m =>
       val base = "sentence-context"
       if m.viewState.status == PlayStatus.Paused || m.viewState.status == PlayStatus.Finished then s"$base hidden" else base
     },
-    children <-- domain.model.map { m =>
+    children <-- domain.state.map { m =>
       val s = m.viewState
       if s.tokens.isEmpty || s.status == PlayStatus.Paused || s.status == PlayStatus.Finished then Seq.empty
       else
@@ -140,23 +140,23 @@ object Components:
     }
   )
 
-  def progressBar(domain: DomainContext): HtmlElement = div(
+  def progressBar(domain: AppContext): HtmlElement = div(
     cls := "progress-container",
     div(
       cls := "progress-bar",
       div(
         cls := "progress-fill",
-        styleAttr <-- domain.model.map(m => s"width: ${DomainModel.progressPercent(m)}%")
+        styleAttr <-- domain.state.map(m => s"width: ${AppState.progressPercent(m)}%")
       )
     ),
     div(
       cls := "progress-stats",
-      span(child.text <-- domain.model.map(DomainModel.wordProgress)),
-      span(child.text <-- domain.model.map(DomainModel.timeRemaining))
+      span(child.text <-- domain.state.map(AppState.wordProgress)),
+      span(child.text <-- domain.state.map(AppState.timeRemaining))
     )
   )
 
-  def primaryControls(domain: DomainContext): HtmlElement = div(
+  def primaryControls(domain: AppContext): HtmlElement = div(
     cls := "primary-controls",
     button(
       cls := "control-btn medium",
@@ -174,7 +174,7 @@ object Components:
     speedControls(domain)
   )
 
-  def secondaryControls(domain: DomainContext, ui: UiState): HtmlElement = div(
+  def secondaryControls(domain: AppContext, ui: UiState): HtmlElement = div(
     cls := "secondary-controls",
     button(
       cls := "control-chip",
@@ -190,8 +190,8 @@ object Components:
     )
   )
 
-  def keyboardHandler(domain: DomainContext, ui: UiState): Modifier[HtmlElement] =
-    onKeyDown.compose(_.withCurrentValueOf(domain.model)) --> { (event, model) =>
+  def keyboardHandler(domain: AppContext, ui: UiState): Modifier[HtmlElement] =
+    onKeyDown.compose(_.withCurrentValueOf(domain.state)) --> { (event, model) =>
       ui.capturingKeyFor.now() match
         case Present(action) =>
           // Capture the key for remapping
@@ -218,9 +218,9 @@ object Components:
           }
     }
 
-  def keyboardHints(domain: DomainContext): HtmlElement = div(
+  def keyboardHints(domain: AppContext): HtmlElement = div(
     cls := "keyboard-hints",
-    children <-- domain.model.map { m =>
+    children <-- domain.state.map { m =>
       val bindings = m.keyBindings
       Seq(
         keyHint(bindings.keyFor(KeyAction.PlayPause), "Play/Pause"),
@@ -236,7 +236,7 @@ object Components:
     labelText
   )
 
-  def textInputModal(domain: DomainContext, ui: UiState, onStart: String => Unit): HtmlElement = div(
+  def textInputModal(domain: AppContext, ui: UiState, onStart: String => Unit): HtmlElement = div(
     cls <-- ui.showTextInputModal.signal.map { show =>
       if show then "text-input-modal visible" else "text-input-modal"
     },

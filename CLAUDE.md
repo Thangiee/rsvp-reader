@@ -55,14 +55,14 @@ shared (JVM + JS)  ←── backend (JVM only)
 - `playback/` — `PlaybackEngine`, `Command`, `ViewState`, `PlayStatus`, `Delay` — async playback loop with command handling and timing
 - `config/` — `RsvpConfig`, `CenterMode`, `KeyBindings` — timing configuration, display settings, keyboard shortcuts
 - `viewmodel/` — pure view model computations (`OrpLayout`, `SentenceWindow`, `KeyDispatch`)
-- `state/` — domain model, actions, reducer, persistence trait (`DomainModel`, `Action`, `Reducer`, `Persistence`)
+- `state/` — domain model, actions, reducer, persistence trait (`AppState`, `Action`, `Reducer`, `Persistence`)
 
 **backend/** — Kyo `KyoApp` serving static assets via Tapir routes
 
 **frontend/** — Laminar UI with Kyo async playback:
 - `Main` — KyoApp entry point: state manager fiber, engine loop, channel wiring
 - `LocalStoragePersistence` — browser localStorage impl of `Persistence` trait
-- `ui/DomainContext` — read-only domain state signal + dispatch/command closures
+- `ui/AppContext` — read-only domain state signal + dispatch/command closures
 - `ui/UiState` — transient UI-only state (modals, input text, capturing key)
 - `ui/Components` — reusable UI elements using view models from shared/
 - `ui/Layout` — page structure composition
@@ -71,16 +71,16 @@ shared (JVM + JS)  ←── backend (JVM only)
 ### State Management
 
 State is split into two categories:
-- **DomainModel** — playback state, settings (centerMode, keyBindings, contextSentences). Flows through `actionCh → Reducer → modelVar`. Pure reducer function, testable on JVM.
+- **AppState** — playback state, settings (centerMode, keyBindings, contextSentences). Flows through `actionCh → Reducer → stateVar`. Pure reducer function, testable on JVM.
 - **UiState** — transient UI concerns (modal visibility, input text, key capture). Plain `LaminarVar` instances, synchronous.
 
-Components receive `DomainContext` (read-only signal + dispatch) and `UiState` as explicit parameters. No global mutable state.
+Components receive `AppContext` (read-only signal + dispatch) and `UiState` as explicit parameters. No global mutable state.
 
 ### Key Data Flow
 
 1. `Tokenizer.tokenize(text)` produces `Span[Token]` with pre-computed ORP indices
 2. `PlaybackEngine.run(tokens)` emits `ViewState` snapshots to a state channel
-3. State consumer fiber dispatches `Action.EngineStateUpdate` → reducer → `modelVar`
+3. State consumer fiber dispatches `Action.EngineStateUpdate` → reducer → `stateVar`
 4. UI sends commands through `Channel[Command]` (capacity 1, bounded)
 5. `Async.race` between sleep and channel take enables instant response to pause/resume
 

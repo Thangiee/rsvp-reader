@@ -4,20 +4,20 @@ import kyo.*
 import rsvpreader.playback.*
 import rsvpreader.config.*
 
-/** Abstraction for persisting DomainModel settings and playback position.
+/** Abstraction for persisting AppState settings and playback position.
   *
   * Implemented by LocalStoragePersistence (browser) and InMemoryPersistence (tests).
   */
 trait Persistence:
-  def load: DomainModel < Sync
-  def save(model: DomainModel): Unit < Sync
+  def load: AppState < Sync
+  def save(model: AppState): Unit < Sync
   def savePosition(textHash: Int, index: Int): Unit < Sync
   def loadPosition: Maybe[(Int, Int)] < Sync
 
 /** In-memory Persistence backed by a mutable Map, used for testing. */
 class InMemoryPersistence(store: scala.collection.mutable.Map[String, String]) extends Persistence:
 
-  def load: DomainModel < Sync = Sync.defer {
+  def load: AppState < Sync = Sync.defer {
     val wpm = store.get("rsvp-wpm").flatMap(_.toIntOption).getOrElse(300)
     val centerMode = store.get("rsvp-centerMode").map(CenterMode.fromString).getOrElse(CenterMode.ORP)
     val contextSentences = store.get("rsvp-contextSentences").flatMap(_.toIntOption).filter(n => n >= 1 && n <= 4).getOrElse(1)
@@ -29,7 +29,7 @@ class InMemoryPersistence(store: scala.collection.mutable.Map[String, String]) e
       }
     }
 
-    DomainModel(
+    AppState(
       viewState = ViewState(Span.empty, 0, PlayStatus.Paused, wpm),
       centerMode = centerMode,
       keyBindings = bindings,
@@ -37,7 +37,7 @@ class InMemoryPersistence(store: scala.collection.mutable.Map[String, String]) e
     )
   }
 
-  def save(model: DomainModel): Unit < Sync = Sync.defer {
+  def save(model: AppState): Unit < Sync = Sync.defer {
     store("rsvp-wpm") = model.viewState.wpm.toString
     store("rsvp-centerMode") = model.centerMode.toString.toLowerCase
     store("rsvp-contextSentences") = model.contextSentences.toString
