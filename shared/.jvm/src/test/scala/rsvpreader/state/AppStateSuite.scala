@@ -5,6 +5,7 @@ import munit.FunSuite
 import rsvpreader.token.*
 import rsvpreader.playback.*
 import rsvpreader.config.*
+import rsvpreader.book.*
 
 class AppStateSuite extends FunSuite:
 
@@ -18,7 +19,9 @@ class AppStateSuite extends FunSuite:
     viewState = ViewState(tokens, 1, PlayStatus.Playing, 300),
     centerMode = CenterMode.ORP,
     keyBindings = KeyBindings.default,
-    contextSentences = 1
+    contextSentences = 1,
+    book = Book.fromPlainText(""),
+    chapterIndex = 0
   )
 
   test("EngineStateUpdate replaces viewState"):
@@ -147,3 +150,33 @@ class AppStateSuite extends FunSuite:
   test("LoadText is a no-op in transform"):
     val result = modelAt(4).transform(Action.PlaybackCmd(Command.LoadText))
     assertEquals(result, modelAt(4))
+
+  test("LoadBook sets book and resets chapterIndex to 0"):
+    val book = Book("Test", "Author", Span(Chapter("Ch1", "text1"), Chapter("Ch2", "text2")))
+    val withChapter = initial.copy(chapterIndex = 5)
+    val result = withChapter.transform(Action.LoadBook(book))
+    assertEquals(result.book.title, "Test")
+    assertEquals(result.chapterIndex, 0)
+    assertEquals(result.book.chapters.length, 2)
+
+  test("LoadChapter updates chapterIndex"):
+    val book = Book("Test", "Author", Span(Chapter("Ch1", "t1"), Chapter("Ch2", "t2"), Chapter("Ch3", "t3")))
+    val m = initial.copy(book = book, chapterIndex = 0)
+    val result = m.transform(Action.LoadChapter(2))
+    assertEquals(result.chapterIndex, 2)
+
+  test("LoadChapter clamps to valid range"):
+    val book = Book("Test", "Author", Span(Chapter("Ch1", "t1"), Chapter("Ch2", "t2")))
+    val m = initial.copy(book = book, chapterIndex = 0)
+    val result = m.transform(Action.LoadChapter(99))
+    assertEquals(result.chapterIndex, 1)
+
+  test("hasNextChapter returns true when not on last chapter"):
+    val book = Book("Test", "", Span(Chapter("Ch1", "t1"), Chapter("Ch2", "t2")))
+    val m = initial.copy(book = book, chapterIndex = 0)
+    assert(AppState.hasNextChapter(m))
+
+  test("hasNextChapter returns false on last chapter"):
+    val book = Book("Test", "", Span(Chapter("Ch1", "t1"), Chapter("Ch2", "t2")))
+    val m = initial.copy(book = book, chapterIndex = 1)
+    assert(!AppState.hasNextChapter(m))

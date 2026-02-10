@@ -4,6 +4,7 @@ import kyo.*
 import munit.FunSuite
 import rsvpreader.playback.*
 import rsvpreader.config.*
+import rsvpreader.book.*
 
 class PersistenceSuite extends FunSuite:
   import AllowUnsafe.embrace.danger
@@ -15,7 +16,9 @@ class PersistenceSuite extends FunSuite:
     viewState = ViewState(Span.empty, 0, PlayStatus.Paused, 450),
     centerMode = CenterMode.First,
     keyBindings = KeyBindings.default.withBinding(KeyAction.PlayPause, "p"),
-    contextSentences = 3
+    contextSentences = 3,
+    book = Book.fromPlainText(""),
+    chapterIndex = 0
   )
 
   test("save then load round-trips AppState"):

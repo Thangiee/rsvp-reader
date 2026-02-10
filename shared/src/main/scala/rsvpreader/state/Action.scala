@@ -2,6 +2,7 @@ package rsvpreader.state
 
 import rsvpreader.playback.*
 import rsvpreader.config.*
+import rsvpreader.book.*
 
 /** Actions dispatched to the state manager via the action channel.
   *
@@ -14,3 +15,5 @@ enum Action:
   case SetCenterMode(mode: CenterMode)
   case SetContextSentences(n: Int)
   case UpdateKeyBinding(action: KeyAction, key: String)
+  case LoadBook(book: Book)
+  case LoadChapter(index: Int)

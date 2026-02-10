@@ -5,6 +5,7 @@ import org.scalajs.dom.window.localStorage
 import rsvpreader.playback.*
 import rsvpreader.config.*
 import rsvpreader.state.*
+import rsvpreader.book.*
 
 object LocalStoragePersistence extends Persistence:
 
@@ -28,7 +29,9 @@ object LocalStoragePersistence extends Persistence:
       viewState = ViewState(Span.empty, 0, PlayStatus.Paused, wpm),
       centerMode = centerMode,
       keyBindings = bindings,
-      contextSentences = contextSentences
+      contextSentences = contextSentences,
+      book = Book.fromPlainText(""),
+      chapterIndex = 0
     )
 
   def load: AppState < Sync = Sync.defer(loadSync)

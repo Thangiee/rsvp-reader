@@ -4,6 +4,7 @@ import kyo.*
 import rsvpreader.token.*
 import rsvpreader.playback.*
 import rsvpreader.config.*
+import rsvpreader.book.*
 
 /** Single source of truth for application state.
   *
@@ -16,7 +17,9 @@ case class AppState(
   viewState: ViewState,
   centerMode: CenterMode,
   keyBindings: KeyBindings,
-  contextSentences: Int
+  contextSentences: Int,
+  book: Book,
+  chapterIndex: Int
 ):
   /** Pure state transition: applies an Action to produce a new AppState.
     *
@@ -40,14 +43,26 @@ case class AppState(
       case Action.UpdateKeyBinding(action, key) =>
         copy(keyBindings = keyBindings.withBinding(action, key))
 
+      case Action.LoadBook(newBook) =>
+        copy(book = newBook, chapterIndex = 0)
+
+      case Action.LoadChapter(index) =>
+        val clamped = Math.max(0, Math.min(index, book.chapters.length - 1))
+        copy(chapterIndex = clamped)
+
 /** Derived view computations and state transition helpers. */
 object AppState:
   def initial: AppState = AppState(
     viewState = ViewState(Span.empty, 0, PlayStatus.Paused, 300),
     centerMode = CenterMode.ORP,
     keyBindings = KeyBindings.default,
-    contextSentences = 1
+    contextSentences = 1,
+    book = Book.fromPlainText(""),
+    chapterIndex = 0
   )
+
+  def hasNextChapter(m: AppState): Boolean =
+    m.chapterIndex < m.book.chapters.length - 1
 
   def progressPercent(m: AppState): Double =
     val s = m.viewState

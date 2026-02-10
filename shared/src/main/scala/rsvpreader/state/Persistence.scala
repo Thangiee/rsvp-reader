@@ -3,6 +3,7 @@ package rsvpreader.state
 import kyo.*
 import rsvpreader.playback.*
 import rsvpreader.config.*
+import rsvpreader.book.*
 
 /** Abstraction for persisting AppState settings and playback position.
   *
@@ -33,7 +34,9 @@ class InMemoryPersistence(store: scala.collection.mutable.Map[String, String]) e
       viewState = ViewState(Span.empty, 0, PlayStatus.Paused, wpm),
       centerMode = centerMode,
       keyBindings = bindings,
-      contextSentences = contextSentences
+      contextSentences = contextSentences,
+      book = Book.fromPlainText(""),
+      chapterIndex = 0
     )
   }
 
