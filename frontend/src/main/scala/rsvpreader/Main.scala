@@ -47,11 +47,17 @@ object Main extends KyoApp:
   // Mutable position tracker — read by engineLoop, updated by onTextLoaded
   @volatile private var currentPosition: Maybe[(Int, Int, Int)] = savedPosition
 
-  // Load saved input text from localStorage
+  // Load saved book from localStorage, falling back to saved input text
+  private val savedBook: Maybe[Book] = LocalStoragePersistence.loadBookSync
+
   private val savedInputText: String =
-    Maybe(dom.window.localStorage.getItem("rsvp-inputText"))
-      .filter(_.trim.nonEmpty)
-      .getOrElse("")
+    savedBook match
+      case Present(book) if book.chapters.length > 0 =>
+        book.chapters(0).text
+      case _ =>
+        Maybe(dom.window.localStorage.getItem("rsvp-inputText"))
+          .filter(_.trim.nonEmpty)
+          .getOrElse("")
 
   // ─────────────────────────────────────────────────────────────────────────
   // Reactive state: stateVar is the single source of truth
@@ -119,19 +125,32 @@ object Main extends KyoApp:
     Layout.app(domain, ui, text => onTextLoaded(text, ui, tokensCh, persistence))
   )
 
-  // Save position + input text on page unload
+  // Save position + book on page unload
   dom.window.addEventListener("beforeunload", (_: dom.Event) => {
     savePosition()
-    dom.window.localStorage.setItem("rsvp-inputText", ui.inputText.now())
+    val m = stateVar.now()
+    LocalStoragePersistence.saveBookSync(m.book)
   })
 
-  // Auto-load saved text on startup
-  if savedInputText.trim.nonEmpty then
-    try
-      val tokens = Tokenizer.tokenize(savedInputText)
-      tokensCh.unsafe.offer(tokens)
-      ()
-    catch case _: Exception => ()
+  // Auto-load saved book or text on startup
+  savedBook match
+    case Present(book) if book.chapters.length > 0 =>
+      val chapterIdx = savedPosition.map(_._2).getOrElse(0)
+      val safeIdx = Math.min(chapterIdx, book.chapters.length - 1)
+      dispatch(Action.LoadBook(book))
+      if safeIdx > 0 then dispatch(Action.LoadChapter(safeIdx))
+      try
+        val tokens = Tokenizer.tokenize(book.chapters(safeIdx).text)
+        tokensCh.unsafe.offer(tokens)
+        ()
+      catch case _: Exception => ()
+    case _ =>
+      if savedInputText.trim.nonEmpty then
+        try
+          val tokens = Tokenizer.tokenize(savedInputText)
+          tokensCh.unsafe.offer(tokens)
+          ()
+        catch case _: Exception => ()
 
   // ─────────────────────────────────────────────────────────────────────────
   // Kyo Runtime Entry Point
@@ -149,12 +168,18 @@ object Main extends KyoApp:
         val newModel = model.transform(action)
         stateVar.set(newModel)
         // Side effects: forward commands to engine, persist settings changes
-        val sideEffect: Unit < (Async & Abort[Closed]) = action match
-          case Action.PlaybackCmd(cmd) => commandCh.put(cmd)
+        action match
+          case Action.PlaybackCmd(cmd) =>
+            commandCh.put(cmd).andThen(Loop.continue(newModel))
           case _: Action.SetCenterMode | _: Action.SetContextSentences | _: Action.UpdateKeyBinding =>
-            persistence.save(newModel)
-          case _ => ()
-        sideEffect.andThen(Loop.continue(newModel))
+            persistence.save(newModel).andThen(Loop.continue(newModel))
+          case Action.LoadChapter(_) =>
+            val chapter = newModel.book.chapters(newModel.chapterIndex)
+            val tokens = Tokenizer.tokenize(chapter.text)
+            currentPosition = Absent
+            commandCh.put(Command.LoadText).andThen(tokensCh.put(tokens)).andThen(Loop.continue(newModel))
+          case _ =>
+            Loop.continue(newModel)
       }
     }
 
@@ -265,14 +290,12 @@ object Main extends KyoApp:
     ui.loadError.set(Absent)
     try
       val tokens = Tokenizer.tokenize(text)
-      val textHash = text.hashCode
-      val startIndex = currentPosition match
-        case Present((hash, _, idx)) if hash == textHash => idx
-        case _ => 0
-      currentPosition = Present((textHash, 0, startIndex))
-      // Save input text so it persists across reloads
+      val book = Book.fromPlainText(text)
+      dispatch(Action.LoadBook(book))
+      currentPosition = Absent
       dom.window.localStorage.setItem("rsvp-inputText", text)
-      println(s"Loaded ${tokens.length} tokens (resuming at $startIndex), sending to engine")
+      LocalStoragePersistence.saveBookSync(book)
+      println(s"Loaded ${tokens.length} tokens, sending to engine")
       commandCh.unsafe.offer(Command.LoadText)
       tokensCh.unsafe.offer(tokens)
       ()
