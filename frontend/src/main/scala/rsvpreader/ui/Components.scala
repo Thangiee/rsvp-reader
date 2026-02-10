@@ -8,6 +8,8 @@ import rsvpreader.playback.*
 import rsvpreader.config.*
 import rsvpreader.state.*
 import rsvpreader.viewmodel.*
+import rsvpreader.book.*
+import rsvpreader.EpubParser
 
 /** Reusable UI components for the RSVP reader. */
 object Components:
@@ -58,7 +60,22 @@ object Components:
             pauseViewOpened = false
             span(cls := "focus-placeholder", "READY TO READ")
           case Present(token) =>
-            if s.status == PlayStatus.Paused || s.status == PlayStatus.Finished then
+            if s.status == PlayStatus.Finished && AppState.hasNextChapter(m) then
+              pauseViewOpened = false
+              val nextIdx = m.chapterIndex + 1
+              val nextTitle = m.book.chapters(nextIdx).title match
+                case t if t.nonEmpty => t
+                case _ => s"Chapter ${nextIdx + 1}"
+              div(
+                cls := "next-chapter-prompt",
+                div(cls := "next-chapter-label", "Chapter complete"),
+                button(
+                  cls := "next-chapter-btn",
+                  s"Next: $nextTitle \u2192",
+                  onClick --> (_ => domain.dispatch(Action.LoadChapter(nextIdx)))
+                )
+              )
+            else if s.status == PlayStatus.Paused || s.status == PlayStatus.Finished then
               val scrollOnMount = !pauseViewOpened
               pauseViewOpened = true
               pauseTextView(s, domain.sendCommand, scrollOnMount)
@@ -174,6 +191,26 @@ object Components:
     speedControls(domain)
   )
 
+  def chapterDropdown(domain: AppContext): HtmlElement = div(
+    cls := "chapter-nav",
+    display <-- domain.state.map { m =>
+      if m.book.chapters.length > 1 then "flex" else "none"
+    },
+    select(
+      cls := "chapter-select",
+      children <-- domain.state.map { m =>
+        (0 until m.book.chapters.length).map { i =>
+          val ch = m.book.chapters(i)
+          val label = if ch.title.nonEmpty then ch.title else s"Chapter ${i + 1}"
+          option(value := i.toString, label, selected := (i == m.chapterIndex))
+        }
+      },
+      onChange.mapToValue --> { value =>
+        domain.dispatch(Action.LoadChapter(value.toInt))
+      }
+    )
+  )
+
   def secondaryControls(domain: AppContext, ui: UiState): HtmlElement = div(
     cls := "secondary-controls",
     button(
@@ -181,6 +218,38 @@ object Components:
       span(cls := "icon", "\ud83d\udcdd"),
       "Load Text",
       onClick --> (_ => ui.showTextInputModal.set(true))
+    ),
+    // Hidden file input for EPUB
+    input(
+      typ := "file",
+      cls := "epub-file-input",
+      accept := ".epub",
+      display := "none",
+      idAttr := "epub-file-input",
+      onChange --> { event =>
+        val inp = event.target.asInstanceOf[dom.html.Input]
+        val files = inp.files
+        if files.length > 0 then
+          val file = files(0)
+          val reader = new dom.FileReader()
+          reader.onload = { _ =>
+            val arrayBuffer = reader.result.asInstanceOf[scala.scalajs.js.typedarray.ArrayBuffer]
+            EpubParser.parse(arrayBuffer).`then`[Unit] { book =>
+              domain.onLoadBook(book)
+            }
+          }
+          reader.readAsArrayBuffer(file)
+          // Reset input so same file can be re-selected
+          inp.value = ""
+      }
+    ),
+    button(
+      cls := "control-chip",
+      span(cls := "icon", "\ud83d\udcd6"),
+      "Load EPUB",
+      onClick --> { _ =>
+        dom.document.getElementById("epub-file-input").asInstanceOf[dom.html.Input].click()
+      }
     ),
     button(
       cls := "control-chip",

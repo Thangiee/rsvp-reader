@@ -3,6 +3,7 @@ package rsvpreader.ui
 import com.raquo.laminar.api.L.{Signal as LaminarSignal, *}
 import rsvpreader.playback.*
 import rsvpreader.state.*
+import rsvpreader.book.*
 
 /** Provides read-only access to application state and a dispatch function for actions.
   *
@@ -16,5 +17,6 @@ case class AppContext(
   dispatch: Action => Unit,
   sendCommand: Command => Unit,
   togglePlayPause: () => Unit,
-  adjustSpeed: Int => Unit
+  adjustSpeed: Int => Unit,
+  onLoadBook: Book => Unit
 )

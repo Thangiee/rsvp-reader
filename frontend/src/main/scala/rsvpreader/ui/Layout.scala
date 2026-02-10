@@ -32,6 +32,7 @@ object Layout:
   def controlsDock(domain: AppContext, ui: UiState): HtmlElement = div(
     cls := "controls-dock",
     Components.primaryControls(domain),
+    Components.chapterDropdown(domain),
     Components.secondaryControls(domain, ui)
   )
 

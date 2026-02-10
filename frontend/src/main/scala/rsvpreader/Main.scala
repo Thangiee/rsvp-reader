@@ -7,6 +7,7 @@ import rsvpreader.token.*
 import rsvpreader.playback.*
 import rsvpreader.config.*
 import rsvpreader.state.*
+import rsvpreader.book.*
 import rsvpreader.ui.*
 
 /** RSVP Reader Application Entry Point
@@ -104,7 +105,8 @@ object Main extends KyoApp:
     dispatch = dispatch,
     sendCommand = sendCommand,
     togglePlayPause = togglePlayPause,
-    adjustSpeed = adjustSpeed
+    adjustSpeed = adjustSpeed,
+    onLoadBook = book => onLoadBook(book)
   )
 
   private val ui: UiState = UiState.initial(
@@ -277,6 +279,20 @@ object Main extends KyoApp:
     catch
       case ex: Exception =>
         ui.loadError.set(Maybe(s"Failed to process text: ${ex.getMessage}"))
+
+  /** Called when user loads an EPUB book via file picker. */
+  private def onLoadBook(book: Book): Unit =
+    dispatch(Action.LoadBook(book))
+    try
+      val firstChapter = book.chapters(0)
+      val tokens = Tokenizer.tokenize(firstChapter.text)
+      currentPosition = Absent
+      commandCh.unsafe.offer(Command.LoadText)
+      tokensCh.unsafe.offer(tokens)
+      LocalStoragePersistence.saveBookSync(book)
+      ()
+    catch case ex: Exception =>
+      println(s"Failed to load book: ${ex.getMessage}")
 
   /** Saves the current playback position to localStorage. */
   private def savePosition(): Unit =
